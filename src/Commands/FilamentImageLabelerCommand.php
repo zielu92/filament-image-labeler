@@ -1,12 +1,12 @@
 <?php
 
-namespace VendorName\Skeleton\Commands;
+namespace Zielu92\FilamentImageLabeler\Commands;
 
 use Illuminate\Console\Command;
 
-class SkeletonCommand extends Command
+class FilamentImageLabelerCommand extends Command
 {
-    public $signature = 'skeleton';
+    public $signature = 'filament-image-labeler';
 
     public $description = 'My command';
 

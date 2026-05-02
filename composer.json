@@ -1,32 +1,30 @@
 {
-    "name": ":vendor_slug/:package_slug",
-    "description": ":package_description",
+    "name": "zielu92/filament-image-labeler",
+    "description": "This package provides a Filament plugin that allows you to label images in your Filament admin panel. It provides a simple and intuitive interface for labeling images, making it easy to organize and manage your media library.",
     "keywords": [
-        ":vendor_name",
+        "zielu92",
         "laravel",
         "filamentphp",
         "filament",
         "filament-plugin",
-        ":package_slug"
+        "filament-image-labeler"
     ],
-    "homepage": "https://github.com/:vendor_slug/:package_slug",
+    "homepage": "https://github.com/zielu92/filament-image-labeler",
     "support": {
-        "issues": "https://github.com/:vendor_slug/:package_slug/issues",
-        "source": "https://github.com/:vendor_slug/:package_slug"
+        "issues": "https://github.com/zielu92/filament-image-labeler/issues",
+        "source": "https://github.com/zielu92/filament-image-labeler"
     },
     "license": "MIT",
     "authors": [
         {
-            "name": ":author_name",
-            "email": "author@domain.com",
+            "name": "Michał Zieliński",
+            "email": "zielu0@gmail.com",
             "role": "Developer"
         }
     ],
     "require": {
         "php": "^8.2",
-        "filament/filament": "^5.0",
         "filament/forms": "^5.0",
-        "filament/tables": "^5.0",
         "spatie/laravel-package-tools": "^1.15.0"
     },
     "require-dev": {
@@ -43,13 +41,13 @@
     },
     "autoload": {
         "psr-4": {
-            "VendorName\\Skeleton\\": "src/",
-            "VendorName\\Skeleton\\Database\\Factories\\": "database/factories/"
+            "Zielu92\\FilamentImageLabeler\\": "src/",
+            "Zielu92\\FilamentImageLabeler\\Database\\Factories\\": "database/factories/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "VendorName\\Skeleton\\Tests\\": "tests/"
+            "Zielu92\\FilamentImageLabeler\\Tests\\": "tests/"
         }
     },
     "scripts": {
@@ -64,10 +62,10 @@
     "extra": {
         "laravel": {
             "providers": [
-                "VendorName\\Skeleton\\SkeletonServiceProvider"
+                "Zielu92\\FilamentImageLabeler\\FilamentImageLabelerServiceProvider"
             ],
             "aliases": {
-                "Skeleton": "VendorName\\Skeleton\\Facades\\Skeleton"
+                "FilamentImageLabeler": "Zielu92\\FilamentImageLabeler\\Facades\\FilamentImageLabeler"
             }
         }
     },
