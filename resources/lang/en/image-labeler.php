@@ -2,7 +2,7 @@
 
 return [
     'tools' => [
-        'square' => 'Square',
+        'rectangle' => 'Rectangle',
         'polygon' => 'Polygon',
         'clear_all' => 'Clear All',
     ],

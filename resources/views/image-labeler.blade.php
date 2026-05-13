@@ -160,7 +160,7 @@
                     size="sm"
                     icon="heroicon-m-square-3-stack-3d"
                 >
-                    {{ __('filament-image-labeler::image-labeler.tools.square') }}
+                    {{ __('filament-image-labeler::image-labeler.tools.rectangle') }}
                 </x-filament::button>
             @endif
 

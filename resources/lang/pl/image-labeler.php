@@ -2,7 +2,7 @@
 
 return [
     'tools' => [
-        'square' => 'Prostokąt',
+        'rectangle' => 'Prostokąt',
         'polygon' => 'Wielokąt',
         'clear_all' => 'Wyczyść wszystko',
     ],

@@ -2,7 +2,7 @@
 
 return [
     'tools' => [
-        'square' => 'Rechteck',
+        'rectangle' => 'Rechteck',
         'polygon' => 'Polygon',
         'clear_all' => 'Alle löschen',
     ],
