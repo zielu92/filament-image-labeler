@@ -160,7 +160,7 @@
                     size="sm"
                     icon="heroicon-m-square-3-stack-3d"
                 >
-                    Square
+                    {{ __('filament-image-labeler::image-labeler.tools.rectangle') }}
                 </x-filament::button>
             @endif
 
@@ -171,7 +171,7 @@
                     size="sm"
                     icon="heroicon-m-variable"
                 >
-                    Polygon
+                    {{ __('filament-image-labeler::image-labeler.tools.polygon') }}
                 </x-filament::button>
             @endif
 
@@ -182,7 +182,7 @@
                     size="sm"
                     icon="heroicon-m-trash"
                 >
-                    Clear All
+                    {{ __('filament-image-labeler::image-labeler.tools.clear_all') }}
                 </x-filament::button>
             @endif
         </div>
@@ -192,7 +192,7 @@
             class="relative border border-gray-300 rounded-lg overflow-hidden bg-gray-50 shadow-sm dark:border-gray-700 dark:bg-gray-900"
             x-on:mousemove="if (tooltip.visible) { tooltip.x = $event.offsetX; tooltip.y = $event.offsetY; }"
         >
-            <img x-ref="imageToLabel" :src="imageUrl" class="block w-full max-w-full" alt="Label target" />
+            <img x-ref="imageToLabel" :src="imageUrl" class="block w-full max-w-full" alt="{{ __('filament-image-labeler::image-labeler.image_alt') }}" />
 
             <!-- Tooltip -->
             <div
