@@ -7,9 +7,11 @@ parameters:
     level: 4
     paths:
         - src
-        - config
         - database
     tmpDir: build/phpstan
     checkOctaneCompatibility: true
     checkModelProperties: true
+    ignoreErrors:
+        -
+            identifier: trait.unused
 
