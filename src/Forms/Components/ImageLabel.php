@@ -9,7 +9,7 @@ class ImageLabel extends Field
 {
     protected string $view = 'filament-image-labeler::image-labeler';
 
-    protected string | \Closure | null $imageUrl = null;
+    protected string | Closure | null $imageUrl = null;
 
     protected bool | Closure $isMultiple = true;
 
