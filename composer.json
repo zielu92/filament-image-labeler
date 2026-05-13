@@ -1,13 +1,17 @@
 {
     "name": "zielu92/filament-image-labeler",
-    "description": "This package provides a Filament plugin that allows you to label images in your Filament admin panel. It provides a simple and intuitive interface for labeling images, making it easy to organize and manage your media library.",
+    "description": "A Filament plugin for annotating images with rectangles and polygons. Provides an Annotorious-powered canvas, polymorphic persistence layer, and a HasAnnotations trait for any Eloquent model.",
     "keywords": [
         "zielu92",
         "laravel",
         "filamentphp",
         "filament",
         "filament-plugin",
-        "filament-image-labeler"
+        "image-annotation",
+        "image-labeler",
+        "annotorious",
+        "polygon",
+        "rectangle"
     ],
     "homepage": "https://github.com/zielu92/filament-image-labeler",
     "support": {
@@ -41,8 +45,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Zielu92\\FilamentImageLabeler\\": "src/",
-            "Zielu92\\FilamentImageLabeler\\Database\\Factories\\": "database/factories/"
+            "Zielu92\\FilamentImageLabeler\\": "src/"
         }
     },
     "autoload-dev": {
@@ -63,10 +66,7 @@
         "laravel": {
             "providers": [
                 "Zielu92\\FilamentImageLabeler\\FilamentImageLabelerServiceProvider"
-            ],
-            "aliases": {
-                "FilamentImageLabeler": "Zielu92\\FilamentImageLabeler\\Facades\\FilamentImageLabeler"
-            }
+            ]
         }
     },
     "config": {
