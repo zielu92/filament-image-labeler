@@ -2,19 +2,23 @@
 
 namespace Zielu92\FilamentImageLabeler\Forms\Components;
 
-use Filament\Forms\Components\Field;
 use Closure;
+use Filament\Forms\Components\Field;
 
 class ImageLabel extends Field
 {
     protected string $view = 'filament-image-labeler::image-labeler';
 
-    protected string|\Closure|null $imageUrl = null;
+    protected string | \Closure | null $imageUrl = null;
+
     protected bool | Closure $isMultiple = true;
 
     protected bool | Closure $isSquareEnabled = true;
+
     protected bool | Closure $isPolygonEnabled = true;
+
     protected bool | Closure $isClearEnabled = true;
+
     protected array | Closure | null $colorPalette = null;
 
     protected function setUp(): void
@@ -23,9 +27,10 @@ class ImageLabel extends Field
         $this->default([]);
     }
 
-    public function image(string|\Closure $url): static
+    public function image(string | Closure $url): static
     {
         $this->imageUrl = $url;
+
         return $this;
     }
 
@@ -37,6 +42,7 @@ class ImageLabel extends Field
     public function multiple(bool | Closure $condition = true): static
     {
         $this->isMultiple = $condition;
+
         return $this;
     }
 
@@ -48,6 +54,7 @@ class ImageLabel extends Field
     public function enableSquare(bool | Closure $condition = true): static
     {
         $this->isSquareEnabled = $condition;
+
         return $this;
     }
 
@@ -59,6 +66,7 @@ class ImageLabel extends Field
     public function enablePolygon(bool | Closure $condition = true): static
     {
         $this->isPolygonEnabled = $condition;
+
         return $this;
     }
 
@@ -70,6 +78,7 @@ class ImageLabel extends Field
     public function enableClear(bool | Closure $condition = true): static
     {
         $this->isClearEnabled = $condition;
+
         return $this;
     }
 
