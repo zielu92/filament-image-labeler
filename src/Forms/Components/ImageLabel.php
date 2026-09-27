@@ -6,7 +6,6 @@ use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Field;
 use Illuminate\Database\Eloquent\Model;
-use RuntimeException;
 use Throwable;
 use Zielu92\FilamentImageLabeler\Concerns\HasAnnotations;
 use Zielu92\FilamentImageLabeler\Support\AnnotationSuggestion;
@@ -188,10 +187,11 @@ class ImageLabel extends Field
     }
 
     /**
-     * Runs the record's autoAnnotate() and converts its suggestions into
-     * ready ImageLabel field-state shapes. Called by the field action.
+     * Runs the record's autoAnnotate() and turns its suggestions into pending
+     * items (id + label + normalized points); the client scales them against
+     * the image it displays. Called by the field action.
      *
-     * @return list<array{id: string, target: array<string, mixed>, label: string, color: string}>
+     * @return list<array{id: string, label: string, points: list<array<int, float>>}>
      */
     public function performAutoAnnotate(Model | array | null $record = null): array
     {
@@ -207,13 +207,9 @@ class ImageLabel extends Field
             return [];
         }
 
+        // $path is a best-effort convenience for the model's method (never
+        // same-host URLs, which would mean fetching from ourselves).
         $path = FetchesImage::localize($url);
-
-        $dimensions = $path !== null ? @getimagesize($path) : false;
-
-        if ($dimensions === false) {
-            throw new RuntimeException('Automatic annotation failed: the image could not be read from [' . $url . '].');
-        }
 
         if (! method_exists($model, 'autoAnnotate')) {
             return [];
@@ -225,7 +221,7 @@ class ImageLabel extends Field
             return [];
         }
 
-        return AnnotationSuggestion::toShapes($suggestions, (int) $dimensions[0], (int) $dimensions[1], $this->getColorPalette());
+        return AnnotationSuggestion::toPending($suggestions);
     }
 
     /**

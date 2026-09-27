@@ -7,9 +7,12 @@ class FetchesImage
     public const MAX_BYTES = 20 * 1024 * 1024;
 
     /**
-     * Resolve a locally readable path for the image behind $url: paths pass
-     * through, http(s) URLs are downloaded to a temp file that is removed at
-     * the end of the request. Anything else yields null.
+     * Best-effort: resolve a locally readable file for the image behind $url
+     * so a model's autoAnnotate() can be handed actual bytes. Returns null
+     * when it cannot be done safely - notably for same-host URLs (fetching
+     * those would mean requesting our own server) unless they map straight
+     * onto the public disk. Remote http(s) images are downloaded to a temp
+     * file that is removed at the end of the request.
      */
     public static function localize(string $url): ?string
     {
@@ -17,37 +20,78 @@ class FetchesImage
             $url = substr($url, 7);
         }
 
-        // Any other wrapper scheme: http(s) only, never let is_file() stat a URL.
+        // Never let is_file()/stat hit a stream wrapper.
         if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $url) === 1) {
-            if (preg_match('#^https?://#i', $url) !== 1 || ! filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN)) {
+            if (preg_match('#^https?://#i', $url) !== 1) {
                 return null;
             }
-        } elseif (is_file($url)) {
-            return $url;
-        } else {
-            return null;
+
+            $path = parse_url($url, PHP_URL_PATH);
+
+            if (static::isSameHost($url)) {
+                // Serve-the-same-app URL: only accept plain public files
+                // (/storage/... via the artisan storage:link symlink).
+                if (! is_string($path) || ! str_starts_with($path, '/storage/')) {
+                    return null;
+                }
+
+                $public = realpath(public_path($path));
+                $root = realpath(public_path('storage'));
+
+                return $public !== false && $root !== false && str_starts_with($public, $root) && is_file($public)
+                    ? $public
+                    : null;
+            }
+
+            if (! filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN)) {
+                return null;
+            }
+
+            $data = @file_get_contents(
+                $url,
+                false,
+                stream_context_create(['http' => ['timeout' => 15], 'https' => ['timeout' => 15]]),
+                0,
+                self::MAX_BYTES + 1,
+            );
+
+            if ($data === false || strlen($data) > self::MAX_BYTES) {
+                return null;
+            }
+
+            $temp = tempnam(sys_get_temp_dir(), 'fil-ill-');
+
+            if ($temp === false || file_put_contents($temp, $data) === false) {
+                return null;
+            }
+
+            app()->terminating(fn () => @unlink($temp));
+
+            return $temp;
         }
 
-        $data = @file_get_contents(
-            $url,
-            false,
-            stream_context_create(['http' => ['timeout' => 15], 'https' => ['timeout' => 15]]),
-            0,
-            self::MAX_BYTES + 1,
-        );
+        return is_file($url) ? $url : null;
+    }
 
-        if ($data === false || strlen($data) > self::MAX_BYTES) {
-            return null;
+    protected static function isSameHost(string $url): bool
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+
+        if (! is_string($host)) {
+            return false;
         }
 
-        $path = tempnam(sys_get_temp_dir(), 'fil-ill-');
+        $hosts = array_filter([
+            parse_url((string) config('app.url'), PHP_URL_HOST),
+            request()->getHost(),
+        ], 'is_string');
 
-        if ($path === false || file_put_contents($path, $data) === false) {
-            return null;
+        foreach ($hosts as $expected) {
+            if (strcasecmp($host, $expected) === 0) {
+                return true;
+            }
         }
 
-        app()->terminating(fn () => @unlink($path));
-
-        return $path;
+        return false;
     }
 }

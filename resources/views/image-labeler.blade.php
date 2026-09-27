@@ -374,13 +374,33 @@
                 this.autoError = '';
 
                 try {
-                    const shapes = await this.$wire.call('mountAction', 'autoAnnotate', [], { schemaComponent: '{{ $getStatePath() }}' });
-                    this.applyAutoShapes(shapes || []);
+                    const pending = await this.$wire.call('mountAction', 'autoAnnotate', [], { schemaComponent: '{{ $getStatePath() }}' });
+                    this.applyAutoShapes((pending || []).map(p => this.suggestionShape(p)));
                 } catch (e) {
                     this.autoError = (e && (e.message || e)) || @js(__('filament-image-labeler::image-labeler.auto.error'));
                 } finally {
                     this.autoBusy = false;
                 }
+            },
+
+            suggestionShape(s) {
+                const img = this.$refs.imageToLabel;
+                const w = (img && img.naturalWidth) || 1;
+                const h = (img && img.naturalHeight) || 1;
+
+                const pts = (s.points || []).map(p => [
+                    Math.round(Math.min(Math.max(p[0], 0), 1) * w * 100) / 100,
+                    Math.round(Math.min(Math.max(p[1], 0), 1) * h * 100) / 100,
+                ]);
+
+                const d = pts.length ? 'M ' + pts.map(p => p.join(',')).join(' L ') + ' Z' : '';
+
+                return {
+                    id: s.id,
+                    target: { selector: { type: 'SvgSelector', value: '<svg xmlns="http://www.w3.org/2000/svg"><path d="' + d + '"/></svg>' } },
+                    label: s.label || '',
+                    color: this.defaultColorFor(s.label || ''),
+                };
             },
 
             applyAutoShapes(shapes) {

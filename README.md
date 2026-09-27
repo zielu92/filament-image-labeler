@@ -211,13 +211,14 @@ ImageLabel::make('annotations')
     ->columnSpanFull()
 ```
 
-**What happens:** clicking Annotate (or image load, with `autoAnnotateOnLoad()`) calls your `autoAnnotate()`, converts every suggestion into a normal editor shape — real id, your label, palette color — and applies it. From there it *is* manual work: keep editing, undo, save through `syncAnnotations()` as usual. Results are never silently replaced on re-run; new shapes are appended (a `multiple(false)` field replaces).
+**What happens:** clicking Annotate (or image load, with `autoAnnotateOnLoad()`) calls your `autoAnnotate()`, then the editor turns every suggestion into a normal shape right there on the canvas — the normalized points are scaled against the image the browser displays, so placement works for any URL, including protected/private ones. From there it *is* manual work: keep editing, undo, save through `syncAnnotations()` as usual. Results are never silently replaced on re-run; new shapes are appended (a `multiple(false)` field replaces).
 
 Notes:
 
 - The button renders only when the field is enabled **and** the record actually overrides the hook; read-only fields never annotate.
 - Execution is synchronous with a spinner; a slow backend can hit request timeouts — that's your method's contract to keep snappy (queued execution may come later).
-- If your method throws, the editor shows the error under the toolbar and leaves your shapes untouched. The image is fetched (max 20 MB, http/https) for pixel conversion; if it can't be read, the run fails the same way.
+- If your method throws, the editor shows the error under the toolbar and leaves your shapes untouched.
+- `$path`: the package hands your method a local file when it can get one *without* requesting your own server — plain paths, public `/storage/...` URLs, remote http(s) downloads (max 20 MB). Same-host URLs (e.g. Livewire's local upload preview route) yield `null`; write your method so the URL alone is enough when that matters.
 
 ## ImageLabel Configuration
 

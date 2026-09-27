@@ -34,7 +34,10 @@ trait HasAnnotations
      * </code>
      *
      * @param  string  $url  the image URL the field currently displays
-     * @param  string|null  $path  a locally readable file for that URL, when the package could fetch it
+     * @param  string|null  $path  a locally readable file for that URL when the package
+     *                             could obtain one without requesting your own server
+     *                             (plain paths, public /storage URLs, remote http(s) <= 20 MB);
+     *                             handle null - geometry works from normalized points alone
      * @return iterable<AnnotationSuggestion|array{label: string, box?: array, polygon?: array}>|null
      *                                                                                                suggestions with normalized (0..1) geometry (raw arrays are accepted too),
      *                                                                                                or null for "nothing to report"

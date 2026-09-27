@@ -70,40 +70,35 @@ final class AnnotationSuggestion
     }
 
     /**
-     * Convert suggestions into ready ImageLabel field-state shapes.
+     * Convert suggestions into "pending" items for the editor: identity,
+     * label and normalized points. The client scales the points against the
+     * image size the browser actually has - the server never needs to read
+     * the image to place shapes.
      *
      * @param  iterable<int, self|array<array-key, mixed>>  $suggestions
-     * @return list<array{id: string, target: array<string, mixed>, label: string, color: string}>
+     * @return list<array{id: string, label: string, points: list<array{0: float, 1: float}>}>
      */
-    public static function toShapes(iterable $suggestions, int $width, int $height, ?array $palette = null): array
+    public static function toPending(iterable $suggestions): array
     {
-        $shapes = [];
+        $pending = [];
 
         foreach ($suggestions as $suggestion) {
             $suggestion = $suggestion instanceof self ? $suggestion : self::fromArray($suggestion);
 
-            $points = array_map(
-                fn (array $point): array => [
-                    round(min(max($point[0], 0.0), 1.0) * $width, 2),
-                    round(min(max($point[1], 0.0), 1.0) * $height, 2),
-                ],
-                $suggestion->points
-            );
-
-            $shapes[] = [
+            $pending[] = [
                 'id' => (string) Str::uuid(),
-                'target' => [
-                    'selector' => [
-                        'type' => 'SvgSelector',
-                        'value' => '<svg xmlns="http://www.w3.org/2000/svg"><path d="' . self::pointsToPath($points) . '"/></svg>',
-                    ],
-                ],
                 'label' => $suggestion->label,
-                'color' => AnnotationColor::forLabel($suggestion->label, $palette),
+                'points' => array_map(
+                    fn (array $point): array => [
+                        round(min(max($point[0], 0.0), 1.0), 6),
+                        round(min(max($point[1], 0.0), 1.0), 6),
+                    ],
+                    $suggestion->points
+                ),
             ];
         }
 
-        return $shapes;
+        return $pending;
     }
 
     /**
@@ -162,25 +157,5 @@ final class AnnotationSuggestion
         }
 
         return $points;
-    }
-
-    /**
-     * @param  list<array{0: float, 1: float}>  $points
-     */
-    protected static function pointsToPath(array $points): string
-    {
-        $first = array_shift($points);
-
-        if ($first === null) {
-            return '';
-        }
-
-        $path = "M {$first[0]},{$first[1]}";
-
-        foreach ($points as $point) {
-            $path .= " L {$point[0]},{$point[1]}";
-        }
-
-        return $path . ' Z';
     }
 }
