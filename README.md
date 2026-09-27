@@ -1,49 +1,43 @@
 # Filament Image Labeler
 
-A Filament plugin for annotating images with rectangles and polygons. Built on [Annotorious](https://annotorious.dev/), it provides a canvas-based drawing tool as a Filament form field, plus a polymorphic persistence layer so any Eloquent model can have annotations.
+A Filament plugin for labeling images — draw rectangles and polygons, name them, color them, all inside one form field. Built on [Annotorious](https://annotorious.dev/), with a polymorphic persistence layer so any Eloquent model can keep its annotations.
 
 ## Features
 
-- Draw rectangles and polygons on images
-- Stable color assignment per annotation (hash-based, not index-based)
+- Annotation canvas with a toolbar under the image: **Select / Rectangle / Polygon / Label**, plus **undo / redo / delete**
+- Built-in **Labels panel** — every distinct label gets a row with a color dot, edit and delete
+- Built-in **Label Details panel** — rename a label (renames every shape using it) and pick its color
+- Label pills rendered over the shapes on the canvas
+- Two-way selection: click a shape to load its label, click a row to select the shape
 - Polymorphic `annotations` table — attach annotations to any model
 - `HasAnnotations` trait with `syncAnnotations()` for easy CRUD
-- Flexible `metadata` JSON column — store whatever your app needs
-- Works with private/public file storage
-- Filament v5 compatible
+- Works with private/public file storage, Filament v5 compatible, translations (en/de/pl)
 
 ## Installation
 
 ```bash
 composer require zielu92/filament-image-labeler
-```
-
-Run the migration (auto-loaded from the package, no publishing needed):
-
-```bash
 php artisan migrate
 ```
 
 ## How It Works
 
-The package has two parts:
+`ImageLabel` is a self-contained form field. Its Livewire state is an array of shapes:
 
-1. **`ImageLabel` form field** — Renders an image with an Annotorious overlay. Users draw shapes on the image. The component emits its state as a JSON array of `[{id, target}]` objects where `id` is a unique annotation identifier and `target` contains the W3C Web Annotation geometry data.
-
-2. **Persistence layer** — An `Annotation` Eloquent model and `HasAnnotations` trait that store annotations in a polymorphic `annotations` table. Each annotation has an `annotation_id` (the Annotorious UUID), `geometry` (JSON), and an optional `metadata` (JSON) column for any app-specific data.
-
-### Database Schema
-
+```json
+[
+    {
+        "id": "uuid",
+        "target": { "type": "SpecificTarget", "hasSource": "...", "selector": { "type": "SvgSelector", "value": "<svg>...</svg>" } },
+        "label": "Microcontroller",
+        "color": "#ef4444"
+    }
+]
 ```
-annotations
-├── id (bigint, PK)
-├── annotatable_type (string)
-├── annotatable_id (unsigned bigint)
-├── annotation_id (string, unique per parent)
-├── geometry (JSON) — Annotorious target/selector data
-├── metadata (JSON, nullable) — your app's custom data
-└── timestamps
-```
+
+- `target` is the W3C Web Annotation geometry from Annotorious (store it as-is, it round-trips).
+- `label` is free text; shapes sharing a label share a row in the Labels panel.
+- `color` is assigned deterministically from a hash of the label name and can be overridden per label in the UI. Colors are denormalized onto each shape, so the state array is all you need to persist.
 
 ## Usage
 
@@ -58,50 +52,59 @@ class Photo extends Model
 }
 ```
 
-This gives your model:
-- `$photo->annotations()` — morphMany relationship
-- `$photo->syncAnnotations(array $data)` — create/update/delete in one call
-- Automatic cascade delete when the parent model is deleted
+This gives your model `$photo->annotations()` (morphMany), `$photo->syncAnnotations(array $data)` and automatic cascade delete.
 
-### 2. Add the ImageLabel field to your Filament form
+### 2. Add the field to your Filament form
 
 ```php
 use Zielu92\FilamentImageLabeler\Forms\Components\ImageLabel;
 
 ImageLabel::make('annotations')
-    ->image(fn ($record) => $record?->getFirstMediaUrl())
-    ->enableSquare()      // Enable rectangle drawing
-    ->enablePolygon()     // Enable polygon drawing
-    ->enableClear()       // Show "Clear All" button
-    ->multiple()          // Allow multiple annotations (default: true)
+    ->image(fn ($get, $record) => /* resolve the current photo URL */)
     ->live()
     ->columnSpanFull()
 ```
 
-### 3. Sync annotations on save
-
-The `ImageLabel` component emits raw geometry data. Your app decides what metadata to attach. Use Filament's page lifecycle hooks to persist:
+The `image` closure is re-evaluated whenever the form renders, so the canvas follows the form: make the photo field `->live()` and resolve the URL from its state (this also covers freshly uploaded, not-yet-saved files):
 
 ```php
-// In your CreateRecord page:
+->image(fn ($get, $record) => $record?->exists
+    ? $record->getFirstMedia()?->getTemporaryUrl(now()->addHour())
+    : ($get('photo') instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile
+        ? $get('photo')->temporaryUrl()
+        : null))
+```
+
+As a fallback the field also reacts to a `Livewire::dispatch('image-labeler-update-url', $url)` event. Pass the field's state path as a second argument (`..., $url, 'annotations')`) when a page renders multiple `ImageLabel` fields, so only the matching one updates.
+
+### Keyboard
+
+In edit mode: **Delete** / **Backspace** removes the selected shape(s), **Esc** deselects or cancels an in-progress polygon, and **Ctrl/Cmd+Z** / **Ctrl/Cmd+Y** (or the toolbar arrows) undo/redo.
+
+### 3. Persist on save, hydrate on edit
+
+Map the field state onto `syncAnnotations()` — the app decides what goes into `metadata`:
+
+```php
+/** @param array<array{id: string, target: array, label: string, color: string}> $shapes */
+function annotationRows(array $shapes): array
+{
+    return collect($shapes)->map(fn ($s) => [
+        'annotation_id' => $s['id'],
+        'geometry' => $s['target'],
+        'metadata' => ['label' => $s['label'] ?? '', 'color' => $s['color'] ?? null],
+    ])->all();
+}
+```
+
+```php
+// CreatePhoto.php
 class CreatePhoto extends CreateRecord
 {
-    private array $annotationData = [];
-
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Extract annotation data before Eloquent save
-        $this->annotationData = collect($data['annotation_repeater'] ?? [])
-            ->map(fn ($item) => [
-                'annotation_id' => $item['annotation_id'],
-                'geometry' => $item['geometry'],
-                'metadata' => [
-                    'title' => $item['title'] ?? null,
-                    'category' => $item['category'] ?? null,
-                ],
-            ])->toArray();
-
-        unset($data['annotations'], $data['annotation_repeater']);
+        $this->annotationData = annotationRows($data['annotations'] ?? []);
+        unset($data['annotations']);
 
         return $data;
     }
@@ -113,50 +116,31 @@ class CreatePhoto extends CreateRecord
 }
 ```
 
-### 4. Hydrate annotations on edit
-
 ```php
-// In your EditRecord page:
+// EditPhoto.php
+use Zielu92\FilamentImageLabeler\Support\AnnotationColor;
+
 class EditPhoto extends EditRecord
 {
-    private array $annotationData = [];
-
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        $annotations = $this->record->annotations()->orderBy('id')->get();
-
-        if ($annotations->isNotEmpty()) {
-            // Populate the repeater with your app's metadata fields
-            $data['annotation_repeater'] = $annotations->map(fn ($ann) => [
-                'annotation_id' => $ann->annotation_id,
-                'title' => $ann->metadata['title'] ?? '',
-                'category' => $ann->metadata['category'] ?? null,
-                'geometry' => json_encode($ann->geometry),
-            ])->toArray();
-
-            // Populate the canvas with geometry
-            $data['annotations'] = $annotations->map(fn ($ann) => [
+        $data['annotations'] = $this->record->annotations()->orderBy('id')->get()
+            ->map(fn ($ann) => [
                 'id' => $ann->annotation_id,
                 'target' => $ann->geometry,
-            ])->toArray();
-        }
+                'label' => $ann->metadata['label'] ?? '',
+                'color' => $ann->metadata['color'] ?? AnnotationColor::forLabel($ann->metadata['label'] ?? ''),
+            ])
+            ->values()
+            ->all();
 
         return $data;
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        $this->annotationData = collect($data['annotation_repeater'] ?? [])
-            ->map(fn ($item) => [
-                'annotation_id' => $item['annotation_id'],
-                'geometry' => $item['geometry'],
-                'metadata' => [
-                    'title' => $item['title'] ?? null,
-                    'category' => $item['category'] ?? null,
-                ],
-            ])->toArray();
-
-        unset($data['annotations'], $data['annotation_repeater']);
+        $this->annotationData = annotationRows($data['annotations'] ?? []);
+        unset($data['annotations']);
 
         return $data;
     }
@@ -168,207 +152,55 @@ class EditPhoto extends EditRecord
 }
 ```
 
-## Full Example: Repeater with color swatch
-
-A common pattern is to pair the `ImageLabel` with a Filament Repeater that shows editable metadata for each annotation. When `->coloredAnnotations()` is enabled, you can display a matching color swatch in the repeater:
-
-```php
-use Filament\Forms\Components\Hidden;
-use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
-use Illuminate\Support\HtmlString;
-use Zielu92\FilamentImageLabeler\Forms\Components\ImageLabel;
-use Zielu92\FilamentImageLabeler\Support\AnnotationColor;
-
-// Define your palette once — pass the same array to both the component and AnnotationColor
-$palette = [
-    '#ef4444', '#3b82f6', '#10b981', '#f59e0b',
-    '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
-    '#f97316', '#6366f1', '#14b8a6', '#e11d48',
-];
-
-// The annotation canvas with colored annotations
-ImageLabel::make('annotations')
-    ->image(fn ($record) => $record?->getFirstMediaUrl())
-    ->coloredAnnotations($palette)
-    ->enableSquare()
-    ->enablePolygon()
-    ->enableClear()
-    ->multiple()
-    ->live()
-    ->columnSpanFull()
-    ->afterStateUpdated(function (?array $state, Set $set, Get $get) {
-        $currentRepeater = $get('annotation_repeater') ?? [];
-        $existingById = collect($currentRepeater)->keyBy('annotation_id');
-
-        $newRepeater = collect($state ?? [])->map(function ($annotation) use ($existingById) {
-            $id = $annotation['id'];
-            $existing = $existingById->get($id);
-
-            return [
-                'annotation_id' => $id,
-                'title' => $existing['title'] ?? '',
-                'category' => $existing['category'] ?? null,
-                'geometry' => json_encode($annotation['target'] ?? []),
-            ];
-        })->toArray();
-
-        $set('annotation_repeater', $newRepeater);
-    }),
-
-// The metadata repeater with color swatch
-Repeater::make('annotation_repeater')
-    ->schema([
-        Placeholder::make('color_swatch')
-            ->hiddenLabel()
-            ->content(function (Get $get) use ($palette): HtmlString {
-                $id = $get('annotation_id') ?? '';
-                $color = AnnotationColor::forId($id, $palette);
-
-                return new HtmlString(
-                    '<div style="width: 24px; height: 24px; border-radius: 4px; '
-                    . 'background-color: ' . $color . '; '
-                    . 'border: 1px solid rgba(0,0,0,0.2);"></div>'
-                );
-            })
-            ->columnSpan(1),
-        TextInput::make('title')
-            ->label('Title')
-            ->columnSpan(3),
-        Select::make('category')
-            ->options([
-                'person' => 'Person',
-                'object' => 'Object',
-                'location' => 'Location',
-            ])
-            ->columnSpan(3),
-        Hidden::make('annotation_id'),
-        Hidden::make('geometry'),
-    ])
-    ->addable(false)
-    ->deletable(true)
-    ->reorderable(false)
-    ->columns(7)
-    ->columnSpanFull()
-    ->live()
-    ->afterStateUpdated(function (?array $state, Set $set) {
-        $canvasState = collect($state ?? [])->map(fn ($item) => [
-            'id' => $item['annotation_id'],
-            'target' => json_decode($item['geometry'] ?? '[]', true),
-        ])->toArray();
-
-        $set('annotations', $canvasState);
-    }),
-```
-
-The `hashColor` helper (same djb2 algorithm used internally by the package) is available as `AnnotationColor::forId($id, $palette)`.
-
-Each repeater row displays a colored square that matches the annotation's color on the canvas. The color is deterministic — same annotation ID always produces the same color, regardless of order.
-
-When a user deletes a repeater item, the `afterStateUpdated` callback rebuilds the canvas state from the remaining items, effectively removing the annotation from the image as well.
-
-> **Tip:** If you want annotations to only be removable from the canvas (not the repeater), set `->deletable(false)` and rely solely on the "Clear All" button or Annotorious's built-in delete (select + backspace).
+`AnnotationColor::forLabel('USB Port')` returns the same color the canvas picks for a label by default — use it when your metadata was saved without an explicit color.
 
 ## The `syncAnnotations` Method
 
 ```php
 $model->syncAnnotations([
     [
-        'annotation_id' => 'uuid-from-annotorious',
+        'annotation_id' => 'uuid-from-canvas',
         'geometry' => ['selector' => ['type' => 'SvgSelector', 'value' => '<svg>...</svg>']],
-        'metadata' => ['title' => 'My Label', 'score' => 0.95],  // optional
+        'metadata' => ['label' => 'Microcontroller', 'color' => '#ef4444'],
     ],
 ]);
 ```
 
-**Behavior:**
-- Creates annotations that don't exist yet (matched by `annotation_id`)
-- Updates annotations that already exist
-- Deletes annotations whose `annotation_id` is no longer in the array
-- Passing `[]` deletes all annotations for the model
-
-The `geometry` field accepts either an array or a JSON string (auto-decoded).
-The `metadata` field is nullable — pass `null` or omit it if you don't need custom data.
+**Behavior:** creates missing rows (matched by `annotation_id`), updates existing ones, deletes rows whose `annotation_id` is absent, `[]` clears all. `geometry` accepts an array or JSON string; `metadata` is nullable and yours to shape.
 
 ## ImageLabel Configuration
 
 | Method | Description | Default |
 |--------|-------------|---------|
 | `->image(string\|Closure $url)` | Image URL to annotate | required |
-| `->enableSquare(bool $condition)` | Enable rectangle drawing tool | `true` |
-| `->enablePolygon(bool $condition)` | Enable polygon drawing tool | `true` |
-| `->enableClear(bool $condition)` | Show "Clear All" button | `true` |
-| `->multiple(bool $condition)` | Allow multiple annotations | `true` |
-| `->coloredAnnotations(array\|null $palette)` | Enable colored annotations with custom palette | `null` (disabled) |
+| `->enableSquare(bool\|Closure)` | Show the Rectangle tool button | `true` |
+| `->enablePolygon(bool\|Closure)` | Show the Polygon tool button | `true` |
+| `->enableClear(bool\|Closure)` | Show the delete/clear toolbar button | `true` |
+| `->multiple(bool\|Closure)` | Allow multiple shapes (new shape replaces old when `false`) | `true` |
+| `->coloredAnnotations(array\|null $palette)` | Palette used for default label colors | `ImageLabel::DEFAULT_PALETTE` |
+| `->readOnly(bool\|Closure $condition)` | Display mode: shapes render, hovering shows the label; no toolbar or panels | `false` |
 
-### Colored Annotations
+### Read-only display
 
-By default, annotations use Annotorious's default styling (white/light blue outlines). To enable distinct colors per annotation, pass a color palette:
-
-```php
-// With colors — each annotation gets a unique color from the palette
-ImageLabel::make('annotations')
-    ->image(fn ($record) => $record?->getFirstMediaUrl())
-    ->coloredAnnotations([
-        '#ef4444', '#3b82f6', '#10b981', '#f59e0b',
-        '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
-        '#f97316', '#6366f1', '#14b8a6', '#e11d48',
-    ])
-    ->enableSquare()
-    ->enablePolygon()
-    ->live()
-
-// Without colors — uses Annotorious default white/light styling
-ImageLabel::make('annotations')
-    ->image(fn ($record) => $record?->getFirstMediaUrl())
-    ->enableSquare()
-    ->enablePolygon()
-    ->live()
-```
-
-Each annotation gets a deterministic color based on a hash of its ID. The same annotation always gets the same color regardless of order. Colors cycle through the palette when there are more annotations than colors.
-
-To use the color in your repeater (matching the canvas), use the package's `AnnotationColor` helper:
-
-```php
-use Zielu92\FilamentImageLabeler\Support\AnnotationColor;
-
-Placeholder::make('color_swatch')
-    ->hiddenLabel()
-    ->content(function (Get $get) use ($palette): HtmlString {
-        $id = $get('annotation_id') ?? '';
-        $color = AnnotationColor::forId($id, $palette);
-
-        return new HtmlString(
-            '<div style="width: 24px; height: 24px; border-radius: 4px; '
-            . 'background-color: ' . $color . ';"></div>'
-        );
-    })
-```
-
-## Working with Private Files
-
-If your images are stored on a private disk, use temporary signed URLs:
+To show a saved photo's annotations without editing — e.g. on a view page or anywhere a form field fits — hydrate the same state and mark the field read-only:
 
 ```php
 ImageLabel::make('annotations')
-    ->image(function ($record, Get $get) {
-        if ($record && $record->getFirstMedia()) {
-            return $record->getFirstTemporaryUrl(now()->addMinutes(30));
-        }
-
-        // Handle temporary upload during create...
-        return null;
-    })
+    ->image(fn ($record) => $record->getFirstMedia()?->getUrl())
+    ->readOnly()
+    ->dehydrated(false)
+    ->columnSpanFull()
 ```
+
+Shapes are drawn in their label colors; hovering a shape shows a tooltip with its label and color. No drawing, selection, or panels.
+
+In edit mode the Labels and Label Details panels are always rendered — the field owns label state internally, no repeater wiring needed.
+
+## Upgrading from v0.1
+
+The app-side `Repeater` pattern is gone: the field now manages labels/colors itself and its state entries carry `label` and `color`. Old saved data still works — `target` geometry is unchanged; rows without a label in `metadata` simply hydrate as *Unlabeled*.
 
 ## Testing
-
-The package provides the `HasAnnotations` trait which is easily testable:
 
 ```php
 public function test_sync_creates_annotations(): void
