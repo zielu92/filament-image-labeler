@@ -1,0 +1,242 @@
+/* The app's compiled CSS never scans package views, so this stylesheet
+   carries every layout/look rule — no Tailwind utilities in the Blade. */
+
+.filament-il-root {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* Canvas */
+.filament-il-image {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--gray-300, #d1d5db);
+    border-radius: 0.5rem;
+    background-color: var(--gray-50, #f9fafb);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+
+.filament-il-image:where(.dark, .dark *) {
+    border-color: var(--gray-700, #374151);
+    background-color: var(--gray-900, #111827);
+}
+
+.filament-il-img {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+}
+
+.filament-il-box {
+    position: absolute;
+    z-index: 10;
+    border: 2px dashed;
+    border-radius: 0.25rem;
+    pointer-events: none;
+}
+
+.filament-il-pill {
+    position: absolute;
+    z-index: 20;
+    transform: translateY(-100%);
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1rem;
+    color: #fff;
+    border-radius: 0.25rem;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+/* Toolbar */
+.filament-il-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.filament-il-toolbar-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Active tool: gray fi-btn with primary tint. Specificity mirrors
+   Filament's own .fi-btn:not(.fi-outlined) rules. */
+.fi-btn:not(.fi-outlined).filament-il-tool-active {
+    background-color: color-mix(in oklab, var(--primary-600) 15%, transparent);
+    color: var(--primary-600);
+}
+
+.fi-btn:not(.fi-outlined).filament-il-tool-active > .fi-icon {
+    color: var(--primary-600);
+}
+
+.fi-btn:not(.fi-outlined).filament-il-tool-active:where(.dark, .dark *) {
+    background-color: color-mix(in oklab, var(--primary-400) 25%, transparent);
+    color: var(--primary-400);
+}
+
+.fi-btn:not(.fi-outlined).filament-il-tool-active:where(.dark, .dark *) > .fi-icon {
+    color: var(--primary-400);
+}
+
+/* Panels */
+.filament-il-panels {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-top: 0.75rem;
+}
+
+@media (min-width: 768px) {
+    .filament-il-panels {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.filament-il-panel {
+    padding: 1rem;
+    background-color: #fff;
+    border: 1px solid var(--gray-300, #d1d5db);
+    border-radius: 0.75rem;
+}
+
+.filament-il-panel:where(.dark, .dark *) {
+    background-color: var(--gray-900, #111827);
+    border-color: var(--gray-700, #374151);
+}
+
+.filament-il-panel-title {
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--gray-950, #030712);
+}
+
+.filament-il-panel-title:where(.dark, .dark *) {
+    color: #fff;
+}
+
+/* Labels list */
+.filament-il-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.filament-il-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.filament-il-row:hover {
+    background-color: color-mix(in oklab, var(--gray-500) 10%, transparent);
+}
+
+.filament-il-row-active,
+.filament-il-row-active:hover {
+    background-color: color-mix(in oklab, var(--primary-600) 12%, transparent);
+}
+
+.filament-il-dot {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 9999px;
+    flex-shrink: 0;
+}
+
+.filament-il-row-label {
+    flex: 1 1 0%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    color: var(--gray-950, #030712);
+}
+
+.filament-il-row-label:where(.dark, .dark *) {
+    color: #fff;
+}
+
+.filament-il-empty {
+    padding: 0.25rem 0;
+    font-size: 0.875rem;
+    color: var(--gray-400, #9ca3af);
+}
+
+/* Details */
+.filament-il-details {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.filament-il-field-label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--gray-500, #6b7280);
+}
+
+.filament-il-color-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.filament-il-color-input {
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+    padding: 0.125rem;
+    border: 1px solid var(--gray-300, #d1d5db);
+    border-radius: 0.375rem;
+    background-color: #fff;
+    cursor: pointer;
+}
+
+.filament-il-color-input:where(.dark, .dark *) {
+    border-color: var(--gray-600, #4b5563);
+    background-color: var(--gray-800, #1f2937);
+}
+
+.filament-il-hex {
+    flex: 1 1 0%;
+    min-width: 0;
+}
+
+/* Read-only hover tooltip */
+.filament-il-tooltip {
+    position: absolute;
+    z-index: 30;
+    pointer-events: none;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1rem;
+    color: #fff;
+    background-color: rgb(17 24 39 / 0.92);
+    border-left: 3px solid;
+    border-radius: 0.25rem;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+}
+
+.filament-il-root [x-cloak] {
+    display: none !important;
+}
