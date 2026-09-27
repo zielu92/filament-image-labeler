@@ -6,6 +6,7 @@ return [
         'rectangle' => 'Rechteck',
         'polygon' => 'Polygon',
         'label' => 'Beschriftung',
+        'annotate' => 'Automatisch',
         'undo' => 'Rückgängig',
         'redo' => 'Wiederholen',
         'delete' => 'Auswahl löschen (oder alles leeren)',
@@ -23,6 +24,9 @@ return [
         'label' => 'Beschriftung',
         'color' => 'Farbe',
         'hint' => 'Wählen Sie eine Form oder Beschriftung zum Bearbeiten aus.',
+    ],
+    'auto' => [
+        'error' => 'Automatische Beschriftung fehlgeschlagen.',
     ],
     'image_alt' => 'Bild zum Beschriften',
 ];

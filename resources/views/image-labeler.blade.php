@@ -27,6 +27,11 @@
             scale: 1,
             readOnly: {{ $field->isReadOnly() ? 'true' : 'false' }},
             tooltip: { visible: false, text: '', color: '#6b7280', x: 0, y: 0 },
+            autoEnabled: {{ $field->recordSupportsAutoAnnotation() ? 'true' : 'false' }},
+            autoOnLoad: {{ $field->isAutoAnnotateOnLoad() ? 'true' : 'false' }},
+            autoBusy: false,
+            autoError: '',
+            _autoRunKey: null,
 
             hashColor(value) {
                 let hash = 0;
@@ -159,6 +164,7 @@
 
                     this.initAnnotorious();
                     this.updateScale();
+                    this.maybeAutoRun();
 
                     // External (server-side) state changes: sync geometry into the canvas.
                     this.$watch('state', (newState) => {
@@ -249,6 +255,7 @@
                     }
                     this.updateScale();
                     this.initAnnotorious();
+                    this.maybeAutoRun();
                 };
                 img.src = url;
             },
@@ -360,6 +367,39 @@
 
             undo() { this.anno?.undo(); this.syncGeometry(); },
             redo() { this.anno?.redo(); this.syncGeometry(); },
+
+            async annotate() {
+                if (this.autoBusy) return;
+                this.autoBusy = true;
+                this.autoError = '';
+
+                try {
+                    const shapes = await this.$wire.call('mountAction', 'autoAnnotate', [], { schemaComponent: '{{ $getStatePath() }}' });
+                    this.applyAutoShapes(shapes || []);
+                } catch (e) {
+                    this.autoError = (e && (e.message || e)) || @js(__('filament-image-labeler::image-labeler.auto.error'));
+                } finally {
+                    this.autoBusy = false;
+                }
+            },
+
+            applyAutoShapes(shapes) {
+                if (!shapes.length) return;
+                if (!this.isMultiple) { this.state = shapes; return; }
+
+                const ids = new Set((this.state || []).map(s => s.id));
+                this.state = [...(this.state || []), ...shapes.filter(s => !ids.has(s.id))];
+            },
+
+            maybeAutoRun() {
+                if (!this.autoEnabled || !this.autoOnLoad || !this.imageUrl) return;
+
+                const key = this.imageUrl.split('?')[0].split('#')[0];
+                if (this._autoRunKey === key) return;
+
+                this._autoRunKey = key;
+                this.annotate();
+            },
 
             syncGeometry() {
                 const anns = this.anno?.getAnnotations() || [];
@@ -511,6 +551,25 @@
                     >
                         {{ __('filament-image-labeler::image-labeler.tools.label') }}
                     </x-filament::button>
+
+                    @if($field->recordSupportsAutoAnnotation())
+                        <x-filament::button
+                            size="sm"
+                            color="gray"
+                            icon="heroicon-m-wand-sparkles"
+                            x-on:click="annotate()"
+                            x-bind:disabled="autoBusy"
+                        >
+                            <span x-show="!autoBusy">{{ __('filament-image-labeler::image-labeler.tools.annotate') }}</span>
+                            <span x-show="autoBusy" x-cloak class="filament-il-auto-busy">
+                                <svg class="animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" width="14" height="14">
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" opacity="0.25"></circle>
+                                    <path fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" opacity="0.75"></path>
+                                </svg>
+                                {{ __('filament-image-labeler::image-labeler.tools.annotate') }}
+                            </span>
+                        </x-filament::button>
+                    @endif
                 </div>
 
                 <div class="filament-il-toolbar-group">
@@ -542,8 +601,12 @@
                             aria-label="{{ __('filament-image-labeler::image-labeler.tools.delete') }}"
                         />
                     @endif
-                </div>
-            </div>
+                 </div>
+             </div>
+
+            @if($field->recordSupportsAutoAnnotation())
+                <p x-show="autoError" x-text="autoError" x-cloak class="filament-il-auto-error"></p>
+            @endif
 
         <!-- LABELS + DETAILS -->
         <div wire:ignore class="filament-il-panels">

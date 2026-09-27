@@ -3,7 +3,9 @@
 namespace Zielu92\FilamentImageLabeler\Concerns;
 
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use ReflectionMethod;
 use Zielu92\FilamentImageLabeler\Models\Annotation;
+use Zielu92\FilamentImageLabeler\Support\AnnotationSuggestion;
 
 trait HasAnnotations
 {
@@ -17,6 +19,30 @@ trait HasAnnotations
     public function annotations(): MorphMany
     {
         return $this->morphMany(Annotation::class, 'annotatable');
+    }
+
+    /**
+     * Automatic annotation hook. The feature is off while this stays as-is:
+     * override it in your model to report what you find in an image - use any
+     * technique you like (local model, cloud API, hardcoded demo...).
+     *
+     * @param  string  $url  the image URL the field currently displays
+     * @param  string|null  $path  a locally readable file for that URL, when the package could fetch it
+     * @return array<int, AnnotationSuggestion|array{label: string, box?: array, polygon?: array}>|null
+     *                                                                                                  suggestions with normalized (0..1) geometry, or null for "nothing to report"
+     */
+    public function autoAnnotate(string $url, ?string $path): ?array
+    {
+        return null;
+    }
+
+    /**
+     * Whether the model actually overrides {@see autoAnnotate()} - the package
+     * treats the untouched trait default as "automatic annotation is off".
+     */
+    public function hasCustomAutoAnnotation(): bool
+    {
+        return (new ReflectionMethod($this, 'autoAnnotate'))->getFileName() !== __DIR__ . '/HasAnnotations.php';
     }
 
     /**

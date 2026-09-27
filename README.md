@@ -13,6 +13,7 @@ A Filament plugin for labeling images — draw rectangles and polygons, name the
 - Two-way selection: click a shape to load its label, click a row to select the shape
 - Polymorphic `annotations` table — attach annotations to any model
 - `HasAnnotations` trait with `syncAnnotations()` for easy CRUD
+- **Optional automatic annotation** — a model overrides `autoAnnotate()` to turn an image into suggestions (any backend you like: local model, detection API, LLM); the editor gets an **Annotate** button, optionally auto-running when the image loads
 - Works with private/public file storage, Filament v5 compatible, translations (en/de/pl)
 
 ## Installation
@@ -170,6 +171,52 @@ $model->syncAnnotations([
 
 **Behavior:** creates missing rows (matched by `annotation_id`), updates existing ones, deletes rows whose `annotation_id` is absent, `[]` clears all. `geometry` accepts an array or JSON string; `metadata` is nullable and yours to shape.
 
+## Automatic annotation
+
+Let a model label its own images. The package defines only *that* it happens and *what shape the answer has* — how you find things in the image is entirely yours (local model, hosted detector, vision LLM, hardcoded test data).
+
+**1. Override the hook on your model.** The trait default returns `null`, which keeps the feature off:
+
+```php
+use Zielu92\FilamentImageLabeler\Concerns\HasAnnotations;
+use Zielu92\FilamentImageLabeler\Support\AnnotationSuggestion;
+
+class Photo extends Model
+{
+    use HasAnnotations;
+
+    public function autoAnnotate(string $url, ?string $path): ?array
+    {
+        // $url  - the image URL the editor currently displays
+        // $path - a local temp file for that URL, when the package could fetch it (null otherwise)
+        // Coordinates are normalized: fractions of the image's width/height.
+
+        return [
+            new AnnotationSuggestion(label: 'USB Port', box: [0.42, 0.11, 0.18, 0.09]),
+            ['label' => 'Heatsink', 'polygon' => [[0.1, 0.1], [0.3, 0.12], [0.28, 0.4]]],
+        ];
+    }
+}
+```
+
+**2. Enable the field:**
+
+```php
+ImageLabel::make('annotations')
+    ->image(/* ... */)
+    ->enableAutoAnnotation()   // toolbar gets an "Annotate" button
+    ->autoAnnotateOnLoad()     // optional: also run when the image appears
+    ->columnSpanFull()
+```
+
+**What happens:** clicking Annotate (or image load, with `autoAnnotateOnLoad()`) calls your `autoAnnotate()`, converts every suggestion into a normal editor shape — real id, your label, palette color — and applies it. From there it *is* manual work: keep editing, undo, save through `syncAnnotations()` as usual. Results are never silently replaced on re-run; new shapes are appended (a `multiple(false)` field replaces).
+
+Notes:
+
+- The button renders only when the field is enabled **and** the record actually overrides the hook; read-only fields never annotate.
+- Execution is synchronous with a spinner; a slow backend can hit request timeouts — that's your method's contract to keep snappy (queued execution may come later).
+- If your method throws, the editor shows the error under the toolbar and leaves your shapes untouched. The image is fetched (max 20 MB, http/https) for pixel conversion; if it can't be read, the run fails the same way.
+
 ## ImageLabel Configuration
 
 | Method | Description | Default |
@@ -181,6 +228,8 @@ $model->syncAnnotations([
 | `->multiple(bool\|Closure)` | Allow multiple shapes (new shape replaces old when `false`) | `true` |
 | `->coloredAnnotations(array\|null $palette)` | Palette used for default label colors | `ImageLabel::DEFAULT_PALETTE` |
 | `->readOnly(bool\|Closure $condition)` | Display mode: shapes render, hovering shows the label; no toolbar or panels | `false` |
+| `->enableAutoAnnotation(bool\|Closure)` | Show the Annotate button (needs an `autoAnnotate()` override on the model) | `false` |
+| `->autoAnnotateOnLoad(bool\|Closure)` | Also run automatic annotation when the image (re)loads | `false` |
 
 ### Read-only display
 
