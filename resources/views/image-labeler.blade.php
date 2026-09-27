@@ -17,6 +17,7 @@
 
             activeTool: 'select',
             selIds: [],
+            metaCache: {},
             canUndo: false,
             canRedo: false,
             editingLabel: null,
@@ -112,11 +113,12 @@
                         });
                     }
                     if (!(this.state || []).find(s => s.id === annotation.id)) {
+                        const meta = this.metaCache[annotation.id] || { label: '', color: this.noneColor };
                         this.state = [...(this.state || []), {
                             id: annotation.id,
                             target: annotation.target,
-                            label: '',
-                            color: this.noneColor,
+                            label: meta.label,
+                            color: meta.color,
                         }];
                     }
                     this.refreshHistory();
@@ -130,6 +132,10 @@
                 });
 
                 this.anno.on('deleteAnnotation', (annotation) => {
+                    const shape = (this.state || []).find(s => s.id === annotation.id);
+                    if (shape) {
+                        this.metaCache[shape.id] = { label: shape.label, color: shape.color || this.noneColor };
+                    }
                     this.state = (this.state || []).filter(s => s.id !== annotation.id);
                     this.refreshHistory();
                 });
@@ -184,13 +190,25 @@
                         .observe(this.$refs.urlFlag, { attributes: true, attributeFilter: ['data-url'] });
                 });
 
-                Livewire.on('image-labeler-update-url', (data) => {
+                this._urlHandler = (data) => {
                     const [url, path] = Array.isArray(data) ? data : [data];
                     if (path && path !== '{{ $getStatePath() }}') return;
                     if (url) this.setImage(url);
-                });
+                };
 
-                window.addEventListener('resize', () => this.updateScale());
+                Livewire.on('image-labeler-update-url', this._urlHandler);
+
+                this._onResize = () => this.updateScale();
+                window.addEventListener('resize', this._onResize);
+            },
+
+            destroy() {
+                if (this._onResize) window.removeEventListener('resize', this._onResize);
+                if (this._urlHandler) Livewire.off('image-labeler-update-url', this._urlHandler);
+                if (this.anno) {
+                    this.anno.destroy();
+                    this.anno = null;
+                }
             },
 
             onKeydown(e) {
@@ -207,8 +225,19 @@
             },
 
             setImage(url) {
+                if (! url) return;
+
+                const key = (u) => u.split('?')[0].split('#')[0];
+
+                // Same media behind a refreshed (signed) URL: keep annotations,
+                // just let Alpine swap the src.
+                if (this.imageUrl && key(url) === key(this.imageUrl)) {
+                    this.imageUrl = url;
+
+                    return;
+                }
+
                 const initial = !this.imageUrl;
-                if (!url || url === this.imageUrl) return;
                 this.imageUrl = url;
 
                 const img = this.$refs.imageToLabel;

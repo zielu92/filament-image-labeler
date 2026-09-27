@@ -36,6 +36,10 @@ class AnnotationColor
             return static::NONE_COLOR;
         }
 
-        return static::forId($label, $palette ?? ImageLabel::DEFAULT_PALETTE);
+        $palette = array_values($palette ?? ImageLabel::DEFAULT_PALETTE);
+
+        return $palette === []
+            ? static::NONE_COLOR
+            : static::forId($label, $palette);
     }
 }

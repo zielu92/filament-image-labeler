@@ -28,4 +28,9 @@ class AnnotationColorTest extends TestCase
 
         $this->assertContains(AnnotationColor::forLabel('Connector', $palette), $palette);
     }
+
+    public function test_empty_palette_falls_back_safely(): void
+    {
+        $this->assertSame(AnnotationColor::NONE_COLOR, AnnotationColor::forLabel('Connector', []));
+    }
 }

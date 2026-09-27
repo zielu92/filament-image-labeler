@@ -119,6 +119,8 @@ class ImageLabel extends Field
      */
     public function getColorPalette(): array
     {
-        return $this->evaluate($this->colorPalette) ?? static::DEFAULT_PALETTE;
+        $palette = $this->evaluate($this->colorPalette);
+
+        return empty($palette) ? static::DEFAULT_PALETTE : array_values($palette);
     }
 }

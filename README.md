@@ -194,7 +194,7 @@ ImageLabel::make('annotations')
 
 Shapes are drawn in their label colors; hovering a shape shows a tooltip with its label and color. No drawing, selection, or panels.
 
-The Labels and Label Details panels are always rendered — the field owns label state internally, no repeater wiring needed.
+In edit mode the Labels and Label Details panels are always rendered — the field owns label state internally, no repeater wiring needed.
 
 ## Upgrading from v0.1
 
