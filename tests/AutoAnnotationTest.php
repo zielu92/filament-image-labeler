@@ -107,6 +107,33 @@ class AutoAnnotationTest extends TestCase
         $this->assertStringContainsString('M 0,0 L 50,0 L 50,50 L 0,50 Z', $this->pathOf($this->shapeFrom($shapes)));
     }
 
+    public function test_named_constructors_match_the_array_form(): void
+    {
+        $fromDto = AnnotationSuggestion::toShapes(
+            [
+                AnnotationSuggestion::box('Port', 0.5, 0.5, 0.25, 0.25),
+                AnnotationSuggestion::polygon('Blob', [[0, 0], [1, 0], [0.5, 0.5]]),
+            ],
+            100,
+            80,
+        );
+        $fromArray = AnnotationSuggestion::toShapes(
+            [
+                ['label' => 'Port', 'box' => [0.5, 0.5, 0.25, 0.25]],
+                ['label' => 'Blob', 'polygon' => [[0, 0], [1, 0], [0.5, 0.5]]],
+            ],
+            100,
+            80,
+        );
+
+        $this->assertSame(
+            array_map([$this, 'pathOf'], $fromDto),
+            array_map([$this, 'pathOf'], $fromArray),
+        );
+        $this->assertStringContainsString('M 50,40 L 75,40 L 75,60 L 50,60 Z', $this->pathOf($fromDto[0]));
+        $this->assertStringContainsString('M 0,0 L 100,0 L 50,40 Z', $this->pathOf($fromDto[1]));
+    }
+
     public function test_trait_default_disables_automatic_annotation(): void
     {
         $model = new PlainAnnotatedModel;

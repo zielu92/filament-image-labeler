@@ -52,12 +52,30 @@ final class AnnotationSuggestion
     }
 
     /**
+     * A rectangle from normalized [x, y, w, h] (fractions of image size).
+     */
+    public static function box(string $label, float $x, float $y, float $w, float $h): self
+    {
+        return new self(label: $label, box: [$x, $y, $w, $h]);
+    }
+
+    /**
+     * A closed shape from normalized points: [[x, y], [x, y], ...].
+     *
+     * @param  list<array{0: float, 1: float}>  $points
+     */
+    public static function polygon(string $label, array $points): self
+    {
+        return new self(label: $label, polygon: $points);
+    }
+
+    /**
      * Convert suggestions into ready ImageLabel field-state shapes.
      *
-     * @param  array<int, self|array<array-key, mixed>>  $suggestions
+     * @param  iterable<int, self|array<array-key, mixed>>  $suggestions
      * @return list<array{id: string, target: array<string, mixed>, label: string, color: string}>
      */
-    public static function toShapes(array $suggestions, int $width, int $height, ?array $palette = null): array
+    public static function toShapes(iterable $suggestions, int $width, int $height, ?array $palette = null): array
     {
         $shapes = [];
 

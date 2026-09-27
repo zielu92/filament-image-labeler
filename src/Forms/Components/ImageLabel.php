@@ -221,7 +221,7 @@ class ImageLabel extends Field
 
         $suggestions = $model->autoAnnotate($url, $path);
 
-        if (blank($suggestions)) {
+        if ($suggestions === null) {
             return [];
         }
 

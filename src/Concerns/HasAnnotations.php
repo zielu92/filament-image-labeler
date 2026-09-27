@@ -26,10 +26,18 @@ trait HasAnnotations
      * override it in your model to report what you find in an image - use any
      * technique you like (local model, cloud API, hardcoded demo...).
      *
+     * <code>
+     *     return [
+     *         AnnotationSuggestion::box('USB Port', 0.42, 0.11, 0.18, 0.09),
+     *         AnnotationSuggestion::polygon('Heatsink', [[0.1, 0.1], [0.3, 0.12], [0.28, 0.4]]),
+     *     ];
+     * </code>
+     *
      * @param  string  $url  the image URL the field currently displays
      * @param  string|null  $path  a locally readable file for that URL, when the package could fetch it
-     * @return array<int, AnnotationSuggestion|array{label: string, box?: array, polygon?: array}>|null
-     *                                                                                                  suggestions with normalized (0..1) geometry, or null for "nothing to report"
+     * @return iterable<AnnotationSuggestion|array{label: string, box?: array, polygon?: array}>|null
+     *                                                                                                suggestions with normalized (0..1) geometry (raw arrays are accepted too),
+     *                                                                                                or null for "nothing to report"
      */
     public function autoAnnotate(string $url, ?string $path): ?array
     {

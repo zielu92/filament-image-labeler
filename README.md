@@ -192,12 +192,14 @@ class Photo extends Model
         // Coordinates are normalized: fractions of the image's width/height.
 
         return [
-            new AnnotationSuggestion(label: 'USB Port', box: [0.42, 0.11, 0.18, 0.09]),
-            ['label' => 'Heatsink', 'polygon' => [[0.1, 0.1], [0.3, 0.12], [0.28, 0.4]]],
+            AnnotationSuggestion::box('USB Port', 0.42, 0.11, 0.18, 0.09),
+            AnnotationSuggestion::polygon('Heatsink', [[0.1, 0.1], [0.3, 0.12], [0.28, 0.4]]),
         ];
     }
 }
 ```
+
+`AnnotationSuggestion::box()` / `::polygon()` build the DTO; a plain array `['label' => ..., 'box' => ...]` is accepted too if you'd rather not import the class.
 
 **2. Enable the field:**
 
