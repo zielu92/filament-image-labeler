@@ -2,6 +2,8 @@
 
 A Filament plugin for labeling images — draw rectangles and polygons, name them, color them, all inside one form field. Built on [Annotorious](https://annotorious.dev/), with a polymorphic persistence layer so any Eloquent model can keep its annotations.
 
+<img src=".github/assets/screenshot.png" alt="Filament Image Labeler — label editor with toolbar, Labels panel and Label Details panel" width="700" />
+
 ## Features
 
 - Annotation canvas with a toolbar under the image: **Select / Rectangle / Polygon / Label**, plus **undo / redo / delete**
