@@ -395,9 +395,10 @@
 
                 const d = pts.length ? 'M ' + pts.map(p => p.join(',')).join(' L ') + ' Z' : '';
 
+                // \x22 escapes required: a raw quote would close the x-data attribute.
                 return {
                     id: s.id,
-                    target: { selector: { type: 'SvgSelector', value: '<svg xmlns="http://www.w3.org/2000/svg"><path d="' + d + '"/></svg>' } },
+                    target: { selector: { type: 'SvgSelector', value: '<svg xmlns=\x22http://www.w3.org/2000/svg\x22><path d=\x22' + d + '\x22/></svg>' } },
                     label: s.label || '',
                     color: this.defaultColorFor(s.label || ''),
                 };
