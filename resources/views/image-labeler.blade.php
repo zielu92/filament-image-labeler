@@ -374,7 +374,8 @@
                 this.autoError = '';
 
                 try {
-                    const pending = await this.$wire.call('mountAction', 'autoAnnotate', [], { schemaComponent: '{{ $getStatePath() }}' });
+                    // schemaComponent context is the field KEY (form.<name>), not the state path (data.<name>)
+                    const pending = await this.$wire.call('mountAction', 'autoAnnotate', [], { schemaComponent: '{{ $field->getKey() }}' });
                     this.applyAutoShapes((pending || []).map(p => this.suggestionShape(p)));
                 } catch (e) {
                     this.autoError = (e && (e.message || e)) || @js(__('filament-image-labeler::image-labeler.auto.error'));
