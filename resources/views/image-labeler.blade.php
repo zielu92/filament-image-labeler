@@ -523,7 +523,7 @@
         <span x-ref="urlFlag" hidden data-url="{{ $field->getImageUrl() }}"></span>
 
         <!-- IMAGE -->
-        <div wire:ignore class="filament-il-image" x-on:mousemove="if (tooltip.visible) { tooltip.x = $event.offsetX; tooltip.y = $event.offsetY; }" x-on:keydown.window="onKeydown($event)">
+        <div wire:ignore class="filament-il-image" x-show="!!imageUrl" x-cloak x-on:mousemove="if (tooltip.visible) { tooltip.x = $event.offsetX; tooltip.y = $event.offsetY; }" x-on:keydown.window="onKeydown($event)">
                 <img
                     x-ref="imageToLabel"
                     :src="imageUrl"
