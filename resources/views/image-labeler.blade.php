@@ -231,7 +231,14 @@
             },
 
             setImage(url) {
-                if (! url) return;
+                if (! url) {
+                    this.imageUrl = '';
+                    this.state = [];
+                    this.selIds = [];
+                    this._autoRunKey = null;
+
+                    return;
+                }
 
                 const key = (u) => u.split('?')[0].split('#')[0];
 
@@ -294,6 +301,7 @@
             },
 
             setTool(tool) {
+                if (!this.imageUrl) return;
                 this.activeTool = tool;
                 if (!this.anno) return;
                 if (tool === 'select') {
@@ -369,7 +377,7 @@
             redo() { this.anno?.redo(); this.syncGeometry(); },
 
             async annotate() {
-                if (this.autoBusy) return;
+                if (this.autoBusy || !this.imageUrl) return;
                 this.autoBusy = true;
                 this.autoError = '';
 
@@ -551,7 +559,7 @@
 
         @if(! $field->isReadOnly())
         <!-- TOOLBAR (below image) -->
-        <div wire:ignore class="filament-il-toolbar">
+        <div wire:ignore class="filament-il-toolbar" x-show="!!imageUrl" x-cloak>
                 <div class="filament-il-toolbar-group">
                     <x-filament::button
                         size="sm"
@@ -654,7 +662,7 @@
             @endif
 
         <!-- LABELS + DETAILS -->
-        <div wire:ignore class="filament-il-panels">
+        <div wire:ignore class="filament-il-panels" x-show="!!imageUrl" x-cloak>
                 <div class="filament-il-panel">
                     <h4 class="filament-il-panel-title">
                         {{ __('filament-image-labeler::image-labeler.labels.title') }}
