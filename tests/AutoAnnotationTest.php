@@ -129,6 +129,9 @@ class AutoAnnotationTest extends TestCase
         $field->autoAnnotateOnLoad();
 
         $this->assertTrue($field->isAutoAnnotateOnLoad());
+        $this->assertTrue($field->showsAutoAnnotateButton());
+        $this->assertFalse($field->autoAnnotateButton(false)->showsAutoAnnotateButton());
+        $this->assertTrue($field->autoAnnotateOnLoad()->isAutoAnnotateOnLoad());
         $this->assertFalse(ImageLabel::make('x')->isAutoAnnotateEnabled());
         $this->assertFalse(ImageLabel::make('x')->autoAnnotateOnLoad()->isAutoAnnotateOnLoad());
     }

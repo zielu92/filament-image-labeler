@@ -605,7 +605,7 @@
                         {{ __('filament-image-labeler::image-labeler.tools.label') }}
                     </x-filament::button>
 
-                    @if($field->recordSupportsAutoAnnotation())
+                    @if($field->recordSupportsAutoAnnotation() && $field->showsAutoAnnotateButton())
                         <x-filament::button
                             size="sm"
                             color="gray"

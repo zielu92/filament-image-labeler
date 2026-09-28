@@ -39,6 +39,8 @@ class ImageLabel extends Field
 
     protected bool | Closure $autoAnnotatesOnLoad = false;
 
+    protected bool | Closure $autoAnnotateButton = true;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -169,6 +171,23 @@ class ImageLabel extends Field
     public function isAutoAnnotateOnLoad(): bool
     {
         return $this->isAutoAnnotateEnabled() && (bool) $this->evaluate($this->autoAnnotatesOnLoad);
+    }
+
+    /**
+     * Show the Annotate toolbar button (default: yes, whenever
+     * enableAutoAnnotation() is on). Hide it for hands-off setups where
+     * only autoAnnotateOnLoad() should drive annotation.
+     */
+    public function autoAnnotateButton(bool | Closure $condition = true): static
+    {
+        $this->autoAnnotateButton = $condition;
+
+        return $this;
+    }
+
+    public function showsAutoAnnotateButton(): bool
+    {
+        return $this->isAutoAnnotateEnabled() && ! $this->isReadOnly() && (bool) $this->evaluate($this->autoAnnotateButton);
     }
 
     /**
