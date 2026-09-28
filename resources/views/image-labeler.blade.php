@@ -391,25 +391,26 @@
                 const sx = (v) => Math.round(Math.min(Math.max(v, 0), 1) * W * 100) / 100;
                 const sy = (v) => Math.round(Math.min(Math.max(v, 0), 1) * H * 100) / 100;
 
-                let value;
+                // Internal Annotorious geometry (not the W3C <svg> serialization) —
+                // same representation the canvas, editors and persisted shapes use.
+                let selector;
 
-                // \x22 escapes required: a raw quote would close the x-data attribute.
-                // Grammar mirrors Annotorious' own serializer so shapes render and
-                // become editable (rect/polygon parse paths are the robust ones).
                 if (s.rect) {
                     const x = sx(s.rect[0]);
                     const y = sy(s.rect[1]);
-                    const rw = Math.max(sx(s.rect[0] + s.rect[2]) - x, 1);
-                    const rh = Math.max(sy(s.rect[1] + s.rect[3]) - y, 1);
-                    value = '<svg><rect x=\x22' + x + '\x22 y=\x22' + y + '\x22 width=\x22' + rw + '\x22 height=\x22' + rh + '\x22 /></svg>';
+                    const w = Math.max(sx(s.rect[0] + s.rect[2]) - x, 1);
+                    const h = Math.max(sy(s.rect[1] + s.rect[3]) - y, 1);
+                    selector = { type: 'RECTANGLE', geometry: { x, y, w, h, bounds: { minX: x, minY: y, maxX: x + w, maxY: y + h } } };
                 } else {
                     const pts = (s.polygon || []).map(p => [sx(p[0]), sy(p[1])]);
-                    value = '<svg><polygon points=\x22' + pts.map(p => p.join(',')).join(' ') + '\x22 /></svg>';
+                    const xs = pts.map(p => p[0]);
+                    const ys = pts.map(p => p[1]);
+                    selector = { type: 'POLYGON', geometry: { points: pts, bounds: { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) } } };
                 }
 
                 return {
                     id: s.id,
-                    target: { selector: { type: 'SvgSelector', value } },
+                    target: { selector },
                     label: s.label || '',
                     color: this.defaultColorFor(s.label || ''),
                 };
