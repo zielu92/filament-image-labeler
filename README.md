@@ -180,7 +180,7 @@ $model->syncAnnotations([
 
 Let a model label its own images. The package defines only *that* it happens and *what shape the answer has* — how you find things in the image is entirely yours (local model, hosted detector, vision LLM, hardcoded test data).
 
-**1. Override the hook on your model.** The trait default returns `null`, which keeps the feature off:
+**1. Override the hook on your model.** The contract: return a list of `AnnotationSuggestion` **DTOs** (`label` + normalized `box`/`polygon`). The trait default returns `null`, which keeps the feature off:
 
 ```php
 use Zielu92\FilamentImageLabeler\Concerns\HasAnnotations;
@@ -190,6 +190,9 @@ class Photo extends Model
 {
     use HasAnnotations;
 
+    /**
+     * @return list<AnnotationSuggestion>|null  one DTO per finding
+     */
     public function autoAnnotate(string $url, ?string $path): ?array
     {
         // $url  - the image URL the editor currently displays
@@ -204,7 +207,7 @@ class Photo extends Model
 }
 ```
 
-`AnnotationSuggestion::box()` / `::polygon()` build the DTO; a plain array `['label' => ..., 'box' => ...]` is accepted too if you'd rather not import the class.
+`AnnotationSuggestion` is the DTO the package defines (`src/Support/AnnotationSuggestion.php`): immutable, validates its geometry, exposes `label` + normalized `points`. Build it with `::box($label, $x, $y, $w, $h)` / `::polygon($label, [[x, y], ...])`. A plain array `['label' => ..., 'box' => ...]` is accepted too — the package converts it with `AnnotationSuggestion::fromArray()` — so JSON straight from a detection API works without ceremony.
 
 **2. Choose what does the thinking — it's your method, per model.** The package never calls anything itself, so every model can annotate completely differently: a YOLO endpoint here, a face-detection service there, an LLM somewhere else, an ONNX runtime in-process, a python sidecar, hardcoded fixtures in tests. Models share a strategy via a trait/base class, or branch inside the hook by whatever you know about the record:
 
