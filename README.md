@@ -206,13 +206,56 @@ class Photo extends Model
 
 `AnnotationSuggestion::box()` / `::polygon()` build the DTO; a plain array `['label' => ..., 'box' => ...]` is accepted too if you'd rather not import the class.
 
-**2. Enable the field:**
+**2. Choose what does the thinking — it's your method, per model.** The package never calls anything itself, so every model can annotate completely differently: a YOLO endpoint here, a face-detection service there, an LLM somewhere else, an ONNX runtime in-process, a python sidecar, hardcoded fixtures in tests. Models share a strategy via a trait/base class, or branch inside the hook by whatever you know about the record:
+
+```php
+use Illuminate\Support\Facades\Http;
+
+class Photo extends Model
+{
+    use HasAnnotations;
+
+    public function autoAnnotate(string $url, ?string $path): ?array
+    {
+        return match (true) {
+            $this->isPortrait() => $this->detectFaces($url),
+            $this->isHardware() => $this->detectParts($url),
+            default => null,                       // this photo opts out
+        };
+    }
+
+    protected function detectParts(string $url): ?array
+    {
+        // Any HTTP detector will do - map its response into suggestions.
+        $detections = Http::timeout(20)->post('https://detector.test/v1/detect', [
+            'image' => $url,
+            'classes' => $this->source?->part_labels ?? ['*'],
+        ])->json('detections', []);
+
+        return array_map(
+            fn (array $d): AnnotationSuggestion => AnnotationSuggestion::box(
+                label: $d['class'],
+                x: $d['bbox']['x1'],
+                y: $d['bbox']['y1'],
+                w: $d['bbox']['x2'] - $d['bbox']['x1'],
+                h: $d['bbox']['y2'] - $d['bbox']['y1'],
+            ),
+            $detections,
+        );
+    }
+}
+```
+
+Return `null` (or an empty array) when there is nothing to report — the field simply gets no shapes.
+
+**3. Enable the field:**
 
 ```php
 ImageLabel::make('annotations')
     ->image(/* ... */)
-    ->enableAutoAnnotation()   // toolbar gets an "Annotate" button
-    ->autoAnnotateOnLoad()     // optional: also run when the image appears
+    ->enableAutoAnnotation()   // arms the feature for this field
+    ->autoAnnotateOnLoad()     // optional: run when the image appears
+    ->autoAnnotateButton(false) // optional: hide the toolbar button (load-only)
     ->columnSpanFull()
 ```
 
