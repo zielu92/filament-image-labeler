@@ -31,14 +31,19 @@ php artisan migrate
 [
     {
         "id": "uuid",
-        "target": { "type": "SpecificTarget", "hasSource": "...", "selector": { "type": "SvgSelector", "value": "<svg>...</svg>" } },
+        "target": {
+            "selector": {
+                "type": "RECTANGLE",
+                "geometry": { "x": 693, "y": 88, "w": 256, "h": 160, "bounds": { "minX": 693, "minY": 88, "maxX": 949, "maxY": 248 } }
+            }
+        },
         "label": "Microcontroller",
         "color": "#ef4444"
     }
 ]
 ```
 
-- `target` is the W3C Web Annotation geometry from Annotorious (store it as-is, it round-trips).
+- `target.selector` is Annotorious' internal geometry — pixel coordinates in the image's natural size; polygons use `{ "type": "POLYGON", "geometry": { "points": [[x, y], ...], "bounds": {...} } }`. Store it as-is, it round-trips.
 - `label` is free text; shapes sharing a label share a row in the Labels panel.
 - `color` is assigned deterministically from a hash of the label name and can be overridden per label in the UI. Colors are denormalized onto each shape, so the state array is all you need to persist.
 
@@ -163,7 +168,7 @@ class EditPhoto extends EditRecord
 $model->syncAnnotations([
     [
         'annotation_id' => 'uuid-from-canvas',
-        'geometry' => ['selector' => ['type' => 'SvgSelector', 'value' => '<svg>...</svg>']],
+        'geometry' => ['selector' => ['type' => 'RECTANGLE', 'geometry' => ['x' => 693, 'y' => 88, 'w' => 256, 'h' => 160, 'bounds' => ['minX' => 693, 'minY' => 88, 'maxX' => 949, 'maxY' => 248]]]],
         'metadata' => ['label' => 'Microcontroller', 'color' => '#ef4444'],
     ],
 ]);
@@ -248,7 +253,7 @@ ImageLabel::make('annotations')
 
 Shapes are drawn in their label colors; hovering a shape shows a tooltip with its label and color. No drawing, selection, or panels.
 
-In edit mode the Labels and Label Details panels are always rendered — the field owns label state internally, no repeater wiring needed.
+In edit mode the canvas, toolbar and the Labels / Label Details panels appear only while an image is set — the field owns label state internally, no repeater wiring needed.
 
 ## Upgrading from v0.1
 
