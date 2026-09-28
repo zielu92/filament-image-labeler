@@ -577,7 +577,7 @@
                         <x-filament::button
                             size="sm"
                             color="gray"
-                            icon="heroicon-m-wand-sparkles"
+                            icon="heroicon-m-sparkles"
                             x-on:click="annotate()"
                             x-bind:disabled="autoBusy"
                         >
