@@ -64,7 +64,7 @@ class AutoAnnotationTest extends TestCase
         new AnnotationSuggestion(label: 'x', polygon: [[0, 0], [1, 1]]);
     }
 
-    public function test_box_becomes_four_closed_points(): void
+    public function test_box_and_polygon_survive_to_pending_intact(): void
     {
         $pending = AnnotationSuggestion::toPending([
             new AnnotationSuggestion(label: 'USB Port', box: [0.1, 0.2, 0.3, 0.4]),
@@ -76,7 +76,8 @@ class AutoAnnotationTest extends TestCase
             '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/',
             $pending[0]['id']
         );
-        $this->assertSame([[0.1, 0.2], [0.4, 0.2], [0.4, 0.6], [0.1, 0.6]], $pending[0]['points']);
+        $this->assertSame([0.1, 0.2, 0.3, 0.4], $pending[0]['rect']);
+        $this->assertNull($pending[0]['polygon']);
     }
 
     public function test_polygon_wins_over_box_and_points_are_clamped(): void
@@ -89,7 +90,8 @@ class AutoAnnotationTest extends TestCase
             ),
         ]);
 
-        $this->assertSame([[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]], $pending[0]['points']);
+        $this->assertNull($pending[0]['rect']);
+        $this->assertSame([[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]], $pending[0]['polygon']);
     }
 
     public function test_named_constructors_match_the_array_form(): void
@@ -162,7 +164,7 @@ class AutoAnnotationTest extends TestCase
 
         $this->assertCount(1, $pending);
         $this->assertSame('USB Port', $pending[0]['label']);
-        $this->assertSame([[0.1, 0.2], [0.4, 0.2], [0.4, 0.6], [0.1, 0.6]], $pending[0]['points']);
+        $this->assertSame([0.1, 0.2, 0.3, 0.4], $pending[0]['rect']);
     }
 
     public function test_perform_hands_the_model_a_path_when_the_url_is_readable(): void

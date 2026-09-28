@@ -22,6 +22,11 @@ final class AnnotationSuggestion
     public readonly array $points;
 
     /**
+     * @var array{0: float, 1: float, 2: float, 3: float}|null
+     */
+    public readonly ?array $box;
+
+    /**
      * @param  array<array-key, mixed>|null  $box  [x, y, w, h], normalized
      * @param  array<array-key, mixed>|null  $polygon  [[x, y], ...], normalized
      */
@@ -30,13 +35,20 @@ final class AnnotationSuggestion
         ?array $box = null,
         ?array $polygon = null,
     ) {
+        $normBox = null;
+
         if ($polygon !== null) {
-            $this->points = self::polygonPoints($polygon);
+            $points = self::polygonPoints($polygon);
         } elseif ($box !== null) {
-            $this->points = self::boxPoints($box);
+            $normBox = self::numericBox($box);
+            [$x, $y, $w, $h] = $normBox;
+            $points = [[$x, $y], [$x + $w, $y], [$x + $w, $y + $h], [$x, $y + $h]];
         } else {
             throw new InvalidArgumentException('An annotation suggestion needs a box or a polygon.');
         }
+
+        $this->box = $normBox;
+        $this->points = $points;
     }
 
     /**
@@ -71,15 +83,18 @@ final class AnnotationSuggestion
 
     /**
      * Convert suggestions into "pending" items for the editor: identity,
-     * label and normalized points. The client scales the points against the
-     * image size the browser actually has - the server never needs to read
-     * the image to place shapes.
+     * label and normalized geometry. The client scales them against the
+     * image size the browser actually has and serializes them in Annotorious'
+     * native shape grammar - the server never needs to read the image to
+     * place shapes.
      *
      * @param  iterable<int, self|array<array-key, mixed>>  $suggestions
-     * @return list<array{id: string, label: string, points: list<array{0: float, 1: float}>}>
+     * @return list<array{id: string, label: string, rect: array<int, float>|null, polygon: list<array<int, float>>|null}>
      */
     public static function toPending(iterable $suggestions): array
     {
+        $clamp = fn (float $v): float => round(min(max($v, 0.0), 1.0), 6);
+
         $pending = [];
 
         foreach ($suggestions as $suggestion) {
@@ -88,13 +103,10 @@ final class AnnotationSuggestion
             $pending[] = [
                 'id' => (string) Str::uuid(),
                 'label' => $suggestion->label,
-                'points' => array_map(
-                    fn (array $point): array => [
-                        round(min(max($point[0], 0.0), 1.0), 6),
-                        round(min(max($point[1], 0.0), 1.0), 6),
-                    ],
-                    $suggestion->points
-                ),
+                'rect' => $suggestion->box === null ? null : array_map($clamp, $suggestion->box),
+                'polygon' => $suggestion->box === null
+                    ? array_map(fn (array $p): array => [$clamp($p[0]), $clamp($p[1])], $suggestion->points)
+                    : null,
             ];
         }
 
@@ -103,9 +115,9 @@ final class AnnotationSuggestion
 
     /**
      * @param  array<array-key, mixed>  $box
-     * @return list<array{0: float, 1: float}>
+     * @return array{0: float, 1: float, 2: float, 3: float}
      */
-    protected static function boxPoints(array $box): array
+    protected static function numericBox(array $box): array
     {
         if (count($box) !== 4) {
             throw new InvalidArgumentException('A suggestion box must be [x, y, w, h] with numeric, normalized values.');
@@ -121,9 +133,7 @@ final class AnnotationSuggestion
             $values[] = (float) $value;
         }
 
-        [$x, $y, $w, $h] = $values;
-
-        return [[$x, $y], [$x + $w, $y], [$x + $w, $y + $h], [$x, $y + $h]];
+        return $values;
     }
 
     /**

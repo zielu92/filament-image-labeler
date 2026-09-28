@@ -386,20 +386,30 @@
 
             suggestionShape(s) {
                 const img = this.$refs.imageToLabel;
-                const w = (img && img.naturalWidth) || 1;
-                const h = (img && img.naturalHeight) || 1;
+                const W = (img && img.naturalWidth) || 1;
+                const H = (img && img.naturalHeight) || 1;
+                const sx = (v) => Math.round(Math.min(Math.max(v, 0), 1) * W * 100) / 100;
+                const sy = (v) => Math.round(Math.min(Math.max(v, 0), 1) * H * 100) / 100;
 
-                const pts = (s.points || []).map(p => [
-                    Math.round(Math.min(Math.max(p[0], 0), 1) * w * 100) / 100,
-                    Math.round(Math.min(Math.max(p[1], 0), 1) * h * 100) / 100,
-                ]);
-
-                const d = pts.length ? 'M ' + pts.map(p => p.join(',')).join(' L ') + ' Z' : '';
+                let value;
 
                 // \x22 escapes required: a raw quote would close the x-data attribute.
+                // Grammar mirrors Annotorious' own serializer so shapes render and
+                // become editable (rect/polygon parse paths are the robust ones).
+                if (s.rect) {
+                    const x = sx(s.rect[0]);
+                    const y = sy(s.rect[1]);
+                    const rw = Math.max(sx(s.rect[0] + s.rect[2]) - x, 1);
+                    const rh = Math.max(sy(s.rect[1] + s.rect[3]) - y, 1);
+                    value = '<svg><rect x=\x22' + x + '\x22 y=\x22' + y + '\x22 width=\x22' + rw + '\x22 height=\x22' + rh + '\x22 /></svg>';
+                } else {
+                    const pts = (s.polygon || []).map(p => [sx(p[0]), sy(p[1])]);
+                    value = '<svg><polygon points=\x22' + pts.map(p => p.join(',')).join(' ') + '\x22 /></svg>';
+                }
+
                 return {
                     id: s.id,
-                    target: { selector: { type: 'SvgSelector', value: '<svg xmlns=\x22http://www.w3.org/2000/svg\x22><path d=\x22' + d + '\x22/></svg>' } },
+                    target: { selector: { type: 'SvgSelector', value } },
                     label: s.label || '',
                     color: this.defaultColorFor(s.label || ''),
                 };
@@ -463,6 +473,18 @@
                 }
 
                 if (sel.type === 'SvgSelector') {
+                    const rect = /<rect x=\x22(-?[\d.]+)\x22 y=\x22(-?[\d.]+)\x22 width=\x22([\d.]+)\x22 height=\x22([\d.]+)\x22/.exec(sel.value || '');
+                    if (rect) return { x: +rect[1], y: +rect[2], w: +rect[3], h: +rect[4] };
+
+                    const poly = /<polygon points=\x22([^\x22]+)\x22/.exec(sel.value || '');
+                    if (poly) {
+                        const pn = (poly[1].match(/-?[\d.]+/g) || []).map(Number);
+                        const px = [], py = [];
+                        for (let i = 0; i + 1 < pn.length; i += 2) { px.push(pn[i]); py.push(pn[i + 1]); }
+                        if (!px.length) return null;
+                        return { x: Math.min(...px), y: Math.min(...py), w: Math.max(...px) - Math.min(...px), h: Math.max(...py) - Math.min(...py) };
+                    }
+
                     const d = /d=\x22([^\x22]+)\x22/.exec(sel.value || '');
                     if (!d) return null;
                     const nums = (d[1].match(/-?[\d.]+/g) || []).map(Number);

@@ -188,10 +188,10 @@ class ImageLabel extends Field
 
     /**
      * Runs the record's autoAnnotate() and turns its suggestions into pending
-     * items (id + label + normalized points); the client scales them against
-     * the image it displays. Called by the field action.
+     * items (id + label + normalized rect/polygon); the view scales them
+     * against the image it displays. Called by the field action.
      *
-     * @return list<array{id: string, label: string, points: list<array<int, float>>}>
+     * @return list<array{id: string, label: string, rect: array<int, float>|null, polygon: list<array<int, float>>|null}>
      */
     public function performAutoAnnotate(Model | array | null $record = null): array
     {
