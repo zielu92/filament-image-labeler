@@ -399,8 +399,7 @@
                 const sx = (v) => Math.round(Math.min(Math.max(v, 0), 1) * W * 100) / 100;
                 const sy = (v) => Math.round(Math.min(Math.max(v, 0), 1) * H * 100) / 100;
 
-                // Internal Annotorious geometry (not the W3C <svg> serialization) —
-                // same representation the canvas, editors and persisted shapes use.
+                // Annotorious internal geometry (what the canvas renders and persists).
                 let selector;
 
                 if (s.rect) {

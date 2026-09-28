@@ -7,7 +7,6 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Field;
 use Illuminate\Database\Eloquent\Model;
 use Throwable;
-use Zielu92\FilamentImageLabeler\Concerns\HasAnnotations;
 use Zielu92\FilamentImageLabeler\Support\AnnotationSuggestion;
 use Zielu92\FilamentImageLabeler\Support\FetchesImage;
 
@@ -141,10 +140,6 @@ class ImageLabel extends Field
         return empty($palette) ? static::DEFAULT_PALETTE : array_values($palette);
     }
 
-    /**
-     * Show the Annotate toolbar button. Does nothing unless the record's
-     * HasAnnotations::autoAnnotate() is overridden as well.
-     */
     public function enableAutoAnnotation(bool | Closure $condition = true): static
     {
         $this->isAutoAnnotateEnabled = $condition;
@@ -157,10 +152,6 @@ class ImageLabel extends Field
         return (bool) $this->evaluate($this->isAutoAnnotateEnabled);
     }
 
-    /**
-     * Also run the model's autoAnnotate() as soon as the image appears
-     * (requires enableAutoAnnotation()).
-     */
     public function autoAnnotateOnLoad(bool | Closure $condition = true): static
     {
         $this->autoAnnotatesOnLoad = $condition;
@@ -173,11 +164,6 @@ class ImageLabel extends Field
         return $this->isAutoAnnotateEnabled() && (bool) $this->evaluate($this->autoAnnotatesOnLoad);
     }
 
-    /**
-     * Show the Annotate toolbar button (default: yes, whenever
-     * enableAutoAnnotation() is on). Hide it for hands-off setups where
-     * only autoAnnotateOnLoad() should drive annotation.
-     */
     public function autoAnnotateButton(bool | Closure $condition = true): static
     {
         $this->autoAnnotateButton = $condition;
@@ -190,10 +176,7 @@ class ImageLabel extends Field
         return $this->isAutoAnnotateEnabled() && ! $this->isReadOnly() && (bool) $this->evaluate($this->autoAnnotateButton);
     }
 
-    /**
-     * Whether the annotate UI is fully wired: field enabled, not read-only,
-     * and the record overrides autoAnnotate().
-     */
+    /** Field enabled, not read-only, and the record overrides autoAnnotate(). */
     public function recordSupportsAutoAnnotation(Model | array | null $record = null): bool
     {
         if (! $this->isAutoAnnotateEnabled() || $this->isReadOnly()) {
@@ -206,9 +189,7 @@ class ImageLabel extends Field
     }
 
     /**
-     * Runs the record's autoAnnotate() and turns its suggestions into pending
-     * items (id + label + normalized rect/polygon); the view scales them
-     * against the image it displays. Called by the field action.
+     * The field action: run the record's hook, return pending items for the view.
      *
      * @return list<array{id: string, label: string, rect: array<int, float>|null, polygon: list<array<int, float>>|null}>
      */
@@ -226,8 +207,6 @@ class ImageLabel extends Field
             return [];
         }
 
-        // $path is a best-effort convenience for the model's method (never
-        // same-host URLs, which would mean fetching from ourselves).
         $path = FetchesImage::localize($url);
 
         if (! method_exists($model, 'autoAnnotate')) {
@@ -243,11 +222,7 @@ class ImageLabel extends Field
         return AnnotationSuggestion::toPending($suggestions);
     }
 
-    /**
-     * The record when it uses HasAnnotations and overrides autoAnnotate().
-     * hasCustomAutoAnnotation() exists only on the trait, so method_exists
-     * doubles as the "uses HasAnnotations" check.
-     */
+    /** hasCustomAutoAnnotation() exists only on the trait - method_exists doubles as the trait check (PHP has no instanceof for traits). */
     protected function autoAnnotateModel(?Model $model): ?Model
     {
         if ($model === null || ! method_exists($model, 'hasCustomAutoAnnotation')) {

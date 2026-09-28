@@ -7,12 +7,10 @@ class FetchesImage
     public const MAX_BYTES = 20 * 1024 * 1024;
 
     /**
-     * Best-effort: resolve a locally readable file for the image behind $url
-     * so a model's autoAnnotate() can be handed actual bytes. Returns null
-     * when it cannot be done safely - notably for same-host URLs (fetching
-     * those would mean requesting our own server) unless they map straight
-     * onto the public disk. Remote http(s) images are downloaded to a temp
-     * file that is removed at the end of the request.
+     * Best-effort local file for the given image URL: plain paths pass
+     * through, remote http(s) downloads to a request-temp file, same-host
+     * URLs are never fetched (own-server request) unless they map onto the
+     * public /storage dir. Null = no file; geometry works from URLs alone.
      */
     public static function localize(string $url): ?string
     {

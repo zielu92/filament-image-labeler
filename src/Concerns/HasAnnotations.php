@@ -22,35 +22,18 @@ trait HasAnnotations
     }
 
     /**
-     * Automatic annotation hook. The feature is off while this stays as-is:
-     * override it in your model to report what you find in an image - use any
-     * technique you like (local model, cloud API, hardcoded demo...).
+     * Automatic annotation hook - override to report what you find in an
+     * image ($url, and a local $path when one was obtainable). Returning
+     * null keeps the feature off for this model.
      *
-     * <code>
-     *     return [
-     *         AnnotationSuggestion::box('USB Port', 0.42, 0.11, 0.18, 0.09),
-     *         AnnotationSuggestion::polygon('Heatsink', [[0.1, 0.1], [0.3, 0.12], [0.28, 0.4]]),
-     *     ];
-     * </code>
-     *
-     * @param  string  $url  the image URL the field currently displays
-     * @param  string|null  $path  a locally readable file for that URL when the package
-     *                             could obtain one without requesting your own server
-     *                             (plain paths, public /storage URLs, remote http(s) <= 20 MB);
-     *                             handle null - geometry works from normalized points alone
-     * @return iterable<AnnotationSuggestion|array{label: string, box?: array, polygon?: array}>|null
-     *                                                                                                suggestions with normalized (0..1) geometry (raw arrays are accepted too),
-     *                                                                                                or null for "nothing to report"
+     * @return array<int, AnnotationSuggestion|array{label: string, box?: array, polygon?: array}>|null
      */
     public function autoAnnotate(string $url, ?string $path): ?array
     {
         return null;
     }
 
-    /**
-     * Whether the model actually overrides {@see autoAnnotate()} - the package
-     * treats the untouched trait default as "automatic annotation is off".
-     */
+    /** Whether the model overrides autoAnnotate() (the untouched trait default counts as off). */
     public function hasCustomAutoAnnotation(): bool
     {
         return (new ReflectionMethod($this, 'autoAnnotate'))->getFileName() !== __DIR__ . '/HasAnnotations.php';

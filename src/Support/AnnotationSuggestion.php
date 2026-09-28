@@ -6,24 +6,16 @@ use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 /**
- * One finding reported by a model's autoAnnotate() method.
- *
- * Geometry is normalized: every coordinate is a 0..1 fraction of the image
- * width/height, so the model code never needs the image's pixel size.
- * A suggestion carries either a box `[x, y, w, h]` or a polygon
- * `[[x, y], [x, y], ...]` (polygon wins when both are present); either way
- * it is stored as closed `points`.
+ * One finding reported by a model's autoAnnotate(): label + normalized
+ * (0..1) geometry - a box [x, y, w, h] or a polygon of points (polygon wins
+ * when both are given), stored as closed `points`.
  */
 final class AnnotationSuggestion
 {
-    /**
-     * @var list<array{0: float, 1: float}>
-     */
+    /** @var list<array{0: float, 1: float}> */
     public readonly array $points;
 
-    /**
-     * @var array{0: float, 1: float, 2: float, 3: float}|null
-     */
+    /** @var array{0: float, 1: float, 2: float, 3: float}|null */
     public readonly ?array $box;
 
     /**
@@ -63,30 +55,21 @@ final class AnnotationSuggestion
         );
     }
 
-    /**
-     * A rectangle from normalized [x, y, w, h] (fractions of image size).
-     */
+    /** A rectangle from normalized [x, y, w, h]. */
     public static function box(string $label, float $x, float $y, float $w, float $h): self
     {
         return new self(label: $label, box: [$x, $y, $w, $h]);
     }
 
-    /**
-     * A closed shape from normalized points: [[x, y], [x, y], ...].
-     *
-     * @param  list<array{0: float, 1: float}>  $points
-     */
+    /** A closed shape from normalized [[x, y], ...] points. */
     public static function polygon(string $label, array $points): self
     {
         return new self(label: $label, polygon: $points);
     }
 
     /**
-     * Convert suggestions into "pending" items for the editor: identity,
-     * label and normalized geometry. The client scales them against the
-     * image size the browser actually has and serializes them in Annotorious'
-     * native shape grammar - the server never needs to read the image to
-     * place shapes.
+     * Editor-ready pending items: id + label + clamped normalized geometry.
+     * The client scales points against the displayed image size.
      *
      * @param  iterable<int, self|array<array-key, mixed>>  $suggestions
      * @return list<array{id: string, label: string, rect: array<int, float>|null, polygon: list<array<int, float>>|null}>
