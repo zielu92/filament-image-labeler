@@ -22,6 +22,10 @@ class FilamentImageLabelerServiceProvider extends PackageServiceProvider
             $package->hasViews(static::$viewNamespace);
         }
 
+        if (file_exists($package->basePath('/../config'))) {
+            $package->hasConfigFile();
+        }
+
         if (file_exists($package->basePath('/../resources/lang'))) {
             $package->hasTranslations();
         }

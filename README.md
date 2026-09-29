@@ -270,6 +270,7 @@ Notes:
 - Execution is synchronous with a spinner; a slow backend can hit request timeouts — that's your method's contract to keep snappy (queued execution may come later).
 - If your method throws, the editor shows the error under the toolbar and leaves your shapes untouched.
 - `$path`: the package hands your method a local file when it can get one *without* requesting your own server — plain paths, public `/storage/...` URLs, remote http(s) downloads (max 20 MB). Same-host URLs (e.g. Livewire's local upload preview route) yield `null`; write your method so the URL alone is enough when that matters.
+- Security: remote `$path` downloads refuse destinations that resolve to private, loopback, link-local (e.g. the cloud metadata address `169.254.169.254`) or reserved IP ranges, and never follow redirects — so an app that builds image URLs from user-controlled state can't turn the fetch into an SSRF probe. If your images genuinely live on an internal host, opt in via `config('filament-image-labeler.allow_private_image_hosts')` (publishable config file, env `IMAGE_LABELER_ALLOW_PRIVATE_IMAGE_HOSTS`). Results are also discarded if the image is swapped or cleared mid-request.
 
 ## ImageLabel Configuration
 

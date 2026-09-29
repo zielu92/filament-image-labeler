@@ -377,13 +377,18 @@
             redo() { this.anno?.redo(); this.syncGeometry(); },
 
             async annotate() {
-                if (this.autoBusy || !this.imageUrl) return;
+                if (this.autoBusy) return;
                 this.autoBusy = true;
                 this.autoError = '';
+
+                const imageKey = (this.imageUrl || '').split('?')[0].split('#')[0];
 
                 try {
                     // schemaComponent context is the field KEY (form.<name>), not the state path (data.<name>)
                     const pending = await this.$wire.call('mountAction', 'autoAnnotate', [], { schemaComponent: '{{ $field->getKey() }}' });
+
+                    if ((this.imageUrl || '').split('?')[0].split('#')[0] !== imageKey) return;
+
                     this.applyAutoShapes((pending || []).map(p => this.suggestionShape(p)));
                 } catch (e) {
                     this.autoError = (e && (e.message || e)) || @js(__('filament-image-labeler::image-labeler.auto.error'));

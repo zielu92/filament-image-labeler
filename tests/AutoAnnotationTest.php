@@ -229,4 +229,22 @@ class AutoAnnotationTest extends TestCase
         @unlink($public);
         @unlink($path);
     }
+
+    public function test_ssrf_guard_on_remote_hosts(): void
+    {
+        $this->assertFalse($this->app['config']->get('filament-image-labeler.allow_private_image_hosts'));
+
+        // metadata/loopback/RFC1918/ULA-ish literals never reach the network:
+        $this->assertNull(FetchesImage::localize('http://169.254.169.254/latest/meta-data/'));
+        $this->assertFalse(FetchesImage::isHostAllowed('127.0.0.1'));
+        $this->assertFalse(FetchesImage::isHostAllowed('10.1.2.3'));
+        $this->assertFalse(FetchesImage::isHostAllowed('192.168.1.10'));
+        $this->assertFalse(FetchesImage::isHostAllowed('::1'));
+        $this->assertFalse(FetchesImage::isHostAllowed('fe80::1'));
+        $this->assertTrue(FetchesImage::isHostAllowed('93.184.216.34'));
+        $this->assertTrue(FetchesImage::isHostAllowed('2606:2800:220:1:248:1893:25c8:1946'));
+
+        $this->app['config']->set('filament-image-labeler.allow_private_image_hosts', true);
+        $this->assertTrue(FetchesImage::isHostAllowed('10.1.2.3'));
+    }
 }
