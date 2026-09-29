@@ -36,7 +36,8 @@ trait HasAnnotations
     /** Whether the model overrides autoAnnotate() (the untouched trait default counts as off). */
     public function hasCustomAutoAnnotation(): bool
     {
-        return (new ReflectionMethod($this, 'autoAnnotate'))->getFileName() !== __DIR__ . '/HasAnnotations.php';
+        return realpath((new ReflectionMethod($this, 'autoAnnotate'))->getFileName())
+            !== realpath(__DIR__ . '/HasAnnotations.php');
     }
 
     /**
