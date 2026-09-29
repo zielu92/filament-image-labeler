@@ -6,6 +6,7 @@ return [
         'rectangle' => 'Rectangle',
         'polygon' => 'Polygon',
         'label' => 'Label',
+        'annotate' => 'Annotate',
         'undo' => 'Undo',
         'redo' => 'Redo',
         'delete' => 'Delete selected (or clear all)',
@@ -23,6 +24,9 @@ return [
         'label' => 'Label',
         'color' => 'Color',
         'hint' => 'Select a shape or a label to edit it.',
+    ],
+    'auto' => [
+        'error' => 'Automatic annotation failed.',
     ],
     'image_alt' => 'Label target',
 ];

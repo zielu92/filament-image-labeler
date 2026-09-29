@@ -3,7 +3,9 @@
 namespace Zielu92\FilamentImageLabeler\Concerns;
 
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use ReflectionMethod;
 use Zielu92\FilamentImageLabeler\Models\Annotation;
+use Zielu92\FilamentImageLabeler\Support\AnnotationSuggestion;
 
 trait HasAnnotations
 {
@@ -17,6 +19,25 @@ trait HasAnnotations
     public function annotations(): MorphMany
     {
         return $this->morphMany(Annotation::class, 'annotatable');
+    }
+
+    /**
+     * Automatic annotation hook - override to report what you find in an
+     * image ($url, and a local $path when one was obtainable). Returning
+     * null keeps the feature off for this model.
+     *
+     * @return array<int, AnnotationSuggestion|array{label: string, box?: array, polygon?: array}>|null
+     */
+    public function autoAnnotate(string $url, ?string $path): ?array
+    {
+        return null;
+    }
+
+    /** Whether the model overrides autoAnnotate() (the untouched trait default counts as off). */
+    public function hasCustomAutoAnnotation(): bool
+    {
+        return realpath((new ReflectionMethod($this, 'autoAnnotate'))->getFileName())
+            !== realpath(__DIR__ . '/HasAnnotations.php');
     }
 
     /**

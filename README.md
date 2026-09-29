@@ -13,6 +13,7 @@ A Filament plugin for labeling images — draw rectangles and polygons, name the
 - Two-way selection: click a shape to load its label, click a row to select the shape
 - Polymorphic `annotations` table — attach annotations to any model
 - `HasAnnotations` trait with `syncAnnotations()` for easy CRUD
+- **Optional automatic annotation** — a model overrides `autoAnnotate()` to turn an image into suggestions (any backend you like: local model, detection API, LLM); the editor gets an **Annotate** button, optionally auto-running when the image loads
 - Works with private/public file storage, Filament v5 compatible, translations (en/de/pl)
 
 ## Installation
@@ -30,14 +31,19 @@ php artisan migrate
 [
     {
         "id": "uuid",
-        "target": { "type": "SpecificTarget", "hasSource": "...", "selector": { "type": "SvgSelector", "value": "<svg>...</svg>" } },
+        "target": {
+            "selector": {
+                "type": "RECTANGLE",
+                "geometry": { "x": 693, "y": 88, "w": 256, "h": 160, "bounds": { "minX": 693, "minY": 88, "maxX": 949, "maxY": 248 } }
+            }
+        },
         "label": "Microcontroller",
         "color": "#ef4444"
     }
 ]
 ```
 
-- `target` is the W3C Web Annotation geometry from Annotorious (store it as-is, it round-trips).
+- `target.selector` is Annotorious' internal geometry — pixel coordinates in the image's natural size; polygons use `{ "type": "POLYGON", "geometry": { "points": [[x, y], ...], "bounds": {...} } }`. Store it as-is, it round-trips.
 - `label` is free text; shapes sharing a label share a row in the Labels panel.
 - `color` is assigned deterministically from a hash of the label name and can be overridden per label in the UI. Colors are denormalized onto each shape, so the state array is all you need to persist.
 
@@ -162,13 +168,109 @@ class EditPhoto extends EditRecord
 $model->syncAnnotations([
     [
         'annotation_id' => 'uuid-from-canvas',
-        'geometry' => ['selector' => ['type' => 'SvgSelector', 'value' => '<svg>...</svg>']],
+        'geometry' => ['selector' => ['type' => 'RECTANGLE', 'geometry' => ['x' => 693, 'y' => 88, 'w' => 256, 'h' => 160, 'bounds' => ['minX' => 693, 'minY' => 88, 'maxX' => 949, 'maxY' => 248]]]],
         'metadata' => ['label' => 'Microcontroller', 'color' => '#ef4444'],
     ],
 ]);
 ```
 
 **Behavior:** creates missing rows (matched by `annotation_id`), updates existing ones, deletes rows whose `annotation_id` is absent, `[]` clears all. `geometry` accepts an array or JSON string; `metadata` is nullable and yours to shape.
+
+## Automatic annotation
+
+Let a model label its own images. The package defines only *that* it happens and *what shape the answer has* — how you find things in the image is entirely yours (local model, hosted detector, vision LLM, hardcoded test data).
+
+**1. Override the hook on your model.** The contract: return a list of `AnnotationSuggestion` **DTOs** (`label` + normalized `box`/`polygon`). The trait default returns `null`, which keeps the feature off:
+
+```php
+use Zielu92\FilamentImageLabeler\Concerns\HasAnnotations;
+use Zielu92\FilamentImageLabeler\Support\AnnotationSuggestion;
+
+class Photo extends Model
+{
+    use HasAnnotations;
+
+    /**
+     * @return list<AnnotationSuggestion>|null  one DTO per finding
+     */
+    public function autoAnnotate(string $url, ?string $path): ?array
+    {
+        // $url  - the image URL the editor currently displays
+        // $path - a local temp file for that URL, when the package could fetch it (null otherwise)
+        // Coordinates are normalized: fractions of the image's width/height.
+
+        return [
+            AnnotationSuggestion::box('USB Port', 0.42, 0.11, 0.18, 0.09),
+            AnnotationSuggestion::polygon('Heatsink', [[0.1, 0.1], [0.3, 0.12], [0.28, 0.4]]),
+        ];
+    }
+}
+```
+
+`AnnotationSuggestion` is the DTO the package defines (`src/Support/AnnotationSuggestion.php`): immutable, validates its geometry, exposes `label` + normalized `points`. Build it with `::box($label, $x, $y, $w, $h)` / `::polygon($label, [[x, y], ...])`. A plain array `['label' => ..., 'box' => ...]` is accepted too — the package converts it with `AnnotationSuggestion::fromArray()` — so JSON straight from a detection API works without ceremony.
+
+**2. Choose what does the thinking — it's your method, per model.** The package never calls anything itself, so every model can annotate completely differently: a YOLO endpoint here, a face-detection service there, an LLM somewhere else, an ONNX runtime in-process, a python sidecar, hardcoded fixtures in tests. Models share a strategy via a trait/base class, or branch inside the hook by whatever you know about the record:
+
+```php
+use Illuminate\Support\Facades\Http;
+
+class Photo extends Model
+{
+    use HasAnnotations;
+
+    public function autoAnnotate(string $url, ?string $path): ?array
+    {
+        return match (true) {
+            $this->isPortrait() => $this->detectFaces($url),
+            $this->isHardware() => $this->detectParts($url),
+            default => null,                       // this photo opts out
+        };
+    }
+
+    protected function detectParts(string $url): ?array
+    {
+        // Any HTTP detector will do - map its response into suggestions.
+        $detections = Http::timeout(20)->post('https://detector.test/v1/detect', [
+            'image' => $url,
+            'classes' => $this->source?->part_labels ?? ['*'],
+        ])->json('detections', []);
+
+        return array_map(
+            fn (array $d): AnnotationSuggestion => AnnotationSuggestion::box(
+                label: $d['class'],
+                x: $d['bbox']['x1'],
+                y: $d['bbox']['y1'],
+                w: $d['bbox']['x2'] - $d['bbox']['x1'],
+                h: $d['bbox']['y2'] - $d['bbox']['y1'],
+            ),
+            $detections,
+        );
+    }
+}
+```
+
+Return `null` (or an empty array) when there is nothing to report — the field simply gets no shapes.
+
+**3. Enable the field:**
+
+```php
+ImageLabel::make('annotations')
+    ->image(/* ... */)
+    ->enableAutoAnnotation()   // arms the feature for this field
+    ->autoAnnotateOnLoad()     // optional: run when the image appears
+    ->autoAnnotateButton(false) // optional: hide the toolbar button (load-only)
+    ->columnSpanFull()
+```
+
+**What happens:** clicking Annotate (or image load, with `autoAnnotateOnLoad()`) calls your `autoAnnotate()`, then the editor turns every suggestion into a normal shape right there on the canvas — the normalized points are scaled against the image the browser displays, so placement works for any URL, including protected/private ones. From there it *is* manual work: keep editing, undo, save through `syncAnnotations()` as usual. Results are never silently replaced on re-run; new shapes are appended (a `multiple(false)` field replaces).
+
+Notes:
+
+- The button renders only when the field is enabled **and** the record actually overrides the hook; read-only fields never annotate.
+- Execution is synchronous with a spinner; a slow backend can hit request timeouts — that's your method's contract to keep snappy (queued execution may come later).
+- If your method throws, the editor shows the error under the toolbar and leaves your shapes untouched.
+- `$path`: the package hands your method a local file when it can get one *without* requesting your own server — plain paths, public `/storage/...` URLs, remote http(s) downloads (max 20 MB). Same-host URLs (e.g. Livewire's local upload preview route) yield `null`; write your method so the URL alone is enough when that matters.
+- Security: remote `$path` downloads refuse destinations that resolve to private, loopback, link-local (e.g. the cloud metadata address `169.254.169.254`) or reserved IP ranges, and never follow redirects — so an app that builds image URLs from user-controlled state can't turn the fetch into an SSRF probe. If your images genuinely live on an internal host, opt in via `config('filament-image-labeler.allow_private_image_hosts')` (publishable config file, env `IMAGE_LABELER_ALLOW_PRIVATE_IMAGE_HOSTS`). Results are also discarded if the image is swapped or cleared mid-request.
 
 ## ImageLabel Configuration
 
@@ -181,6 +283,11 @@ $model->syncAnnotations([
 | `->multiple(bool\|Closure)` | Allow multiple shapes (new shape replaces old when `false`) | `true` |
 | `->coloredAnnotations(array\|null $palette)` | Palette used for default label colors | `ImageLabel::DEFAULT_PALETTE` |
 | `->readOnly(bool\|Closure $condition)` | Display mode: shapes render, hovering shows the label; no toolbar or panels | `false` |
+| `->enableAutoAnnotation(bool\|Closure)` | Show the Annotate button (needs an `autoAnnotate()` override on the model) | `false` |
+| `->autoAnnotateOnLoad(bool\|Closure)` | Also run automatic annotation when the image (re)loads | `false` |
+| `->autoAnnotateButton(bool\|Closure)` | Show the toolbar button at all (turn off for hands-off, load-only annotation) | `true` |
+| `->autoAnnotateButtonLabel(string\|Closure\|null)` | Button text | `'Annotate'` (translated) |
+| `->autoAnnotateButtonIcon(string\|Closure\|null)` | Button icon; `null` for none | `'heroicon-m-sparkles'` |
 
 ### Read-only display
 
@@ -196,7 +303,7 @@ ImageLabel::make('annotations')
 
 Shapes are drawn in their label colors; hovering a shape shows a tooltip with its label and color. No drawing, selection, or panels.
 
-In edit mode the Labels and Label Details panels are always rendered — the field owns label state internally, no repeater wiring needed.
+In edit mode the canvas, toolbar and the Labels / Label Details panels appear only while an image is set — the field owns label state internally, no repeater wiring needed.
 
 ## Upgrading from v0.1
 

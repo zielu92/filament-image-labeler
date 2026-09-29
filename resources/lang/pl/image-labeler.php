@@ -6,6 +6,7 @@ return [
         'rectangle' => 'Prostokąt',
         'polygon' => 'Wielokąt',
         'label' => 'Etykieta',
+        'annotate' => 'Oznacz',
         'undo' => 'Cofnij',
         'redo' => 'Ponów',
         'delete' => 'Usuń zaznaczone (lub wyczyść wszystko)',
@@ -23,6 +24,9 @@ return [
         'label' => 'Etykieta',
         'color' => 'Kolor',
         'hint' => 'Zaznacz kształt lub etykietę, aby je edytować.',
+    ],
+    'auto' => [
+        'error' => 'Automatyczne oznaczanie nie powiodło się.',
     ],
     'image_alt' => 'Zdjęcie do oznaczenia',
 ];

@@ -1,6 +1,6 @@
 {
     "name": "zielu92/filament-image-labeler",
-    "description": "A Filament plugin for annotating images with rectangles and polygons. Provides an Annotorious-powered canvas, polymorphic persistence layer, and a HasAnnotations trait for any Eloquent model.",
+    "description": "A Filament plugin for annotating images with rectangles and polygons. Provides an Annotorious-powered canvas, polymorphic persistence layer, a HasAnnotations trait for any Eloquent model, and opt-in automatic annotation via a model-defined hook.",
     "keywords": [
         "zielu92",
         "laravel",
@@ -11,7 +11,8 @@
         "image-labeler",
         "annotorious",
         "polygon",
-        "rectangle"
+        "rectangle",
+        "auto-annotation"
     ],
     "homepage": "https://github.com/zielu92/filament-image-labeler",
     "support": {

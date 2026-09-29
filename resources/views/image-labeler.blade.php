@@ -27,6 +27,11 @@
             scale: 1,
             readOnly: {{ $field->isReadOnly() ? 'true' : 'false' }},
             tooltip: { visible: false, text: '', color: '#6b7280', x: 0, y: 0 },
+            autoEnabled: {{ $field->recordSupportsAutoAnnotation() ? 'true' : 'false' }},
+            autoOnLoad: {{ $field->isAutoAnnotateOnLoad() ? 'true' : 'false' }},
+            autoBusy: false,
+            autoError: '',
+            _autoRunKey: null,
 
             hashColor(value) {
                 let hash = 0;
@@ -159,6 +164,7 @@
 
                     this.initAnnotorious();
                     this.updateScale();
+                    this.maybeAutoRun();
 
                     // External (server-side) state changes: sync geometry into the canvas.
                     this.$watch('state', (newState) => {
@@ -225,7 +231,14 @@
             },
 
             setImage(url) {
-                if (! url) return;
+                if (! url) {
+                    this.imageUrl = '';
+                    this.state = [];
+                    this.selIds = [];
+                    this._autoRunKey = null;
+
+                    return;
+                }
 
                 const key = (u) => u.split('?')[0].split('#')[0];
 
@@ -249,6 +262,7 @@
                     }
                     this.updateScale();
                     this.initAnnotorious();
+                    this.maybeAutoRun();
                 };
                 img.src = url;
             },
@@ -287,6 +301,7 @@
             },
 
             setTool(tool) {
+                if (!this.imageUrl) return;
                 this.activeTool = tool;
                 if (!this.anno) return;
                 if (tool === 'select') {
@@ -361,6 +376,76 @@
             undo() { this.anno?.undo(); this.syncGeometry(); },
             redo() { this.anno?.redo(); this.syncGeometry(); },
 
+            async annotate() {
+                if (this.autoBusy) return;
+                this.autoBusy = true;
+                this.autoError = '';
+
+                const imageKey = (this.imageUrl || '').split('?')[0].split('#')[0];
+
+                try {
+                    // schemaComponent context is the field KEY (form.<name>), not the state path (data.<name>)
+                    const pending = await this.$wire.call('mountAction', 'autoAnnotate', [], { schemaComponent: '{{ $field->getKey() }}' });
+
+                    if ((this.imageUrl || '').split('?')[0].split('#')[0] !== imageKey) return;
+
+                    this.applyAutoShapes((pending || []).map(p => this.suggestionShape(p)));
+                } catch (e) {
+                    this.autoError = (e && (e.message || e)) || @js(__('filament-image-labeler::image-labeler.auto.error'));
+                } finally {
+                    this.autoBusy = false;
+                }
+            },
+
+            suggestionShape(s) {
+                const img = this.$refs.imageToLabel;
+                const W = (img && img.naturalWidth) || 1;
+                const H = (img && img.naturalHeight) || 1;
+                const sx = (v) => Math.round(Math.min(Math.max(v, 0), 1) * W * 100) / 100;
+                const sy = (v) => Math.round(Math.min(Math.max(v, 0), 1) * H * 100) / 100;
+
+                // Annotorious internal geometry (what the canvas renders and persists).
+                let selector;
+
+                if (s.rect) {
+                    const x = sx(s.rect[0]);
+                    const y = sy(s.rect[1]);
+                    const w = Math.max(sx(s.rect[0] + s.rect[2]) - x, 1);
+                    const h = Math.max(sy(s.rect[1] + s.rect[3]) - y, 1);
+                    selector = { type: 'RECTANGLE', geometry: { x, y, w, h, bounds: { minX: x, minY: y, maxX: x + w, maxY: y + h } } };
+                } else {
+                    const pts = (s.polygon || []).map(p => [sx(p[0]), sy(p[1])]);
+                    const xs = pts.map(p => p[0]);
+                    const ys = pts.map(p => p[1]);
+                    selector = { type: 'POLYGON', geometry: { points: pts, bounds: { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) } } };
+                }
+
+                return {
+                    id: s.id,
+                    target: { selector },
+                    label: s.label || '',
+                    color: this.defaultColorFor(s.label || ''),
+                };
+            },
+
+            applyAutoShapes(shapes) {
+                if (!shapes.length) return;
+                if (!this.isMultiple) { this.state = shapes; return; }
+
+                const ids = new Set((this.state || []).map(s => s.id));
+                this.state = [...(this.state || []), ...shapes.filter(s => !ids.has(s.id))];
+            },
+
+            maybeAutoRun() {
+                if (!this.autoEnabled || !this.autoOnLoad || !this.imageUrl) return;
+
+                const key = this.imageUrl.split('?')[0].split('#')[0];
+                if (this._autoRunKey === key) return;
+
+                this._autoRunKey = key;
+                this.annotate();
+            },
+
             syncGeometry() {
                 const anns = this.anno?.getAnnotations() || [];
                 const byId = {};
@@ -401,6 +486,18 @@
                 }
 
                 if (sel.type === 'SvgSelector') {
+                    const rect = /<rect x=\x22(-?[\d.]+)\x22 y=\x22(-?[\d.]+)\x22 width=\x22([\d.]+)\x22 height=\x22([\d.]+)\x22/.exec(sel.value || '');
+                    if (rect) return { x: +rect[1], y: +rect[2], w: +rect[3], h: +rect[4] };
+
+                    const poly = /<polygon points=\x22([^\x22]+)\x22/.exec(sel.value || '');
+                    if (poly) {
+                        const pn = (poly[1].match(/-?[\d.]+/g) || []).map(Number);
+                        const px = [], py = [];
+                        for (let i = 0; i + 1 < pn.length; i += 2) { px.push(pn[i]); py.push(pn[i + 1]); }
+                        if (!px.length) return null;
+                        return { x: Math.min(...px), y: Math.min(...py), w: Math.max(...px) - Math.min(...px), h: Math.max(...py) - Math.min(...py) };
+                    }
+
                     const d = /d=\x22([^\x22]+)\x22/.exec(sel.value || '');
                     if (!d) return null;
                     const nums = (d[1].match(/-?[\d.]+/g) || []).map(Number);
@@ -430,7 +527,7 @@
         <span x-ref="urlFlag" hidden data-url="{{ $field->getImageUrl() }}"></span>
 
         <!-- IMAGE -->
-        <div wire:ignore class="filament-il-image" x-on:mousemove="if (tooltip.visible) { tooltip.x = $event.offsetX; tooltip.y = $event.offsetY; }" x-on:keydown.window="onKeydown($event)">
+        <div wire:ignore class="filament-il-image" x-show="!!imageUrl" x-cloak x-on:mousemove="if (tooltip.visible) { tooltip.x = $event.offsetX; tooltip.y = $event.offsetY; }" x-on:keydown.window="onKeydown($event)">
                 <img
                     x-ref="imageToLabel"
                     :src="imageUrl"
@@ -466,7 +563,7 @@
 
         @if(! $field->isReadOnly())
         <!-- TOOLBAR (below image) -->
-        <div wire:ignore class="filament-il-toolbar">
+        <div wire:ignore class="filament-il-toolbar" x-show="!!imageUrl" x-cloak>
                 <div class="filament-il-toolbar-group">
                     <x-filament::button
                         size="sm"
@@ -511,6 +608,25 @@
                     >
                         {{ __('filament-image-labeler::image-labeler.tools.label') }}
                     </x-filament::button>
+
+                    @if($field->recordSupportsAutoAnnotation() && $field->showsAutoAnnotateButton())
+                        <x-filament::button
+                            size="sm"
+                            color="gray"
+                            :icon="$field->getAutoAnnotateButtonIcon()"
+                            x-on:click="annotate()"
+                            x-bind:disabled="autoBusy"
+                        >
+                            <span x-show="!autoBusy">{{ $field->getAutoAnnotateButtonLabel() }}</span>
+                            <span x-show="autoBusy" x-cloak class="filament-il-auto-busy">
+                                <svg class="animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" width="14" height="14">
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" opacity="0.25"></circle>
+                                    <path fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" opacity="0.75"></path>
+                                </svg>
+                                {{ $field->getAutoAnnotateButtonLabel() }}
+                            </span>
+                        </x-filament::button>
+                    @endif
                 </div>
 
                 <div class="filament-il-toolbar-group">
@@ -542,11 +658,15 @@
                             aria-label="{{ __('filament-image-labeler::image-labeler.tools.delete') }}"
                         />
                     @endif
-                </div>
-            </div>
+                 </div>
+             </div>
+
+            @if($field->recordSupportsAutoAnnotation())
+                <p x-show="autoError" x-text="autoError" x-cloak class="filament-il-auto-error"></p>
+            @endif
 
         <!-- LABELS + DETAILS -->
-        <div wire:ignore class="filament-il-panels">
+        <div wire:ignore class="filament-il-panels" x-show="!!imageUrl" x-cloak>
                 <div class="filament-il-panel">
                     <h4 class="filament-il-panel-title">
                         {{ __('filament-image-labeler::image-labeler.labels.title') }}
