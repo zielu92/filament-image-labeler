@@ -2,7 +2,7 @@
 
 All notable changes to `filament-image-labeler` will be documented in this file.
 
-## Unreleased
+## v0.3.0 - 2026-09-29
 
 - **Automatic annotation (opt-in).** `HasAnnotations::autoAnnotate(url, path)` hook — override it per model to return `AnnotationSuggestion`s (builders: `::box()` / `::polygon()`, normalized 0..1 coordinates; raw arrays accepted); the detection backend is entirely yours, the package adds no dependencies. `ImageLabel::enableAutoAnnotation()` adds a toolbar Annotate button, `->autoAnnotateOnLoad()` also runs it when the image appears, `->autoAnnotateButton(false)` hides the button for hands-off load-only annotation; synchronous execution with spinner, suggestions applied as normal editor shapes (rendered, selectable, movable/resizable via native handles, labels panel, colors, undo), errors surfaced under the toolbar. Pixel placement happens client-side against the displayed image, so no server read of the image is needed; `$path` is best-effort (plain paths, public `/storage` URLs, remote http(s) ≤ 20 MB — same-host URLs are never fetched from ourselves). Translations (en/de/pl).
 - **Editor collapses when no image is set:** canvas, toolbar and Labels/Details panels are hidden until an image appears (and hide again if it is removed, clearing stale state).
