@@ -608,17 +608,17 @@
                         <x-filament::button
                             size="sm"
                             color="gray"
-                            icon="heroicon-m-sparkles"
+                            :icon="$field->getAutoAnnotateButtonIcon()"
                             x-on:click="annotate()"
                             x-bind:disabled="autoBusy"
                         >
-                            <span x-show="!autoBusy">{{ __('filament-image-labeler::image-labeler.tools.annotate') }}</span>
+                            <span x-show="!autoBusy">{{ $field->getAutoAnnotateButtonLabel() }}</span>
                             <span x-show="autoBusy" x-cloak class="filament-il-auto-busy">
                                 <svg class="animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" width="14" height="14">
                                     <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" opacity="0.25"></circle>
                                     <path fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" opacity="0.75"></path>
                                 </svg>
-                                {{ __('filament-image-labeler::image-labeler.tools.annotate') }}
+                                {{ $field->getAutoAnnotateButtonLabel() }}
                             </span>
                         </x-filament::button>
                     @endif

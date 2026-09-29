@@ -5,6 +5,7 @@ namespace Zielu92\FilamentImageLabeler\Forms\Components;
 use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Field;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
 use Throwable;
 use Zielu92\FilamentImageLabeler\Support\AnnotationSuggestion;
@@ -39,6 +40,10 @@ class ImageLabel extends Field
     protected bool | Closure $autoAnnotatesOnLoad = false;
 
     protected bool | Closure $autoAnnotateButton = true;
+
+    protected string | Htmlable | Closure | null $autoAnnotateButtonLabel = null;
+
+    protected string | Closure | null $autoAnnotateButtonIcon = 'heroicon-m-sparkles';
 
     protected function setUp(): void
     {
@@ -174,6 +179,31 @@ class ImageLabel extends Field
     public function showsAutoAnnotateButton(): bool
     {
         return $this->isAutoAnnotateEnabled() && ! $this->isReadOnly() && (bool) $this->evaluate($this->autoAnnotateButton);
+    }
+
+    public function autoAnnotateButtonLabel(string | Htmlable | Closure | null $label = null): static
+    {
+        $this->autoAnnotateButtonLabel = $label ?? __('filament-image-labeler::image-labeler.tools.annotate');
+
+        return $this;
+    }
+
+    public function getAutoAnnotateButtonLabel(): string | Htmlable
+    {
+        return $this->evaluate($this->autoAnnotateButtonLabel)
+            ?? __('filament-image-labeler::image-labeler.tools.annotate');
+    }
+
+    public function autoAnnotateButtonIcon(string | Closure | null $icon = null): static
+    {
+        $this->autoAnnotateButtonIcon = $icon;
+
+        return $this;
+    }
+
+    public function getAutoAnnotateButtonIcon(): string | Htmlable | null
+    {
+        return $this->evaluate($this->autoAnnotateButtonIcon);
     }
 
     /** Field enabled, not read-only, and the record overrides autoAnnotate(). */

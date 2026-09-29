@@ -3,7 +3,6 @@
 namespace Zielu92\FilamentImageLabeler\Tests;
 
 use Illuminate\Database\Eloquent\Model;
-use Orchestra\Testbench\TestCase;
 use Zielu92\FilamentImageLabeler\Concerns\HasAnnotations;
 use Zielu92\FilamentImageLabeler\Forms\Components\ImageLabel;
 use Zielu92\FilamentImageLabeler\Support\AnnotationSuggestion;
@@ -156,6 +155,19 @@ class AutoAnnotationTest extends TestCase
             ->enableAutoAnnotation()
             ->image(fn () => 'x.png')
             ->performAutoAnnotate(new PlainAnnotatedModel));
+    }
+
+    public function test_annotate_button_appearance(): void
+    {
+        $field = ImageLabel::make('x')->enableAutoAnnotation();
+
+        $this->assertSame('Annotate', $field->getAutoAnnotateButtonLabel());
+        $this->assertSame('heroicon-m-sparkles', $field->getAutoAnnotateButtonIcon());
+
+        $field->autoAnnotateButtonLabel(fn () => 'Detect')->autoAnnotateButtonIcon(null);
+
+        $this->assertSame('Detect', $field->getAutoAnnotateButtonLabel());
+        $this->assertNull($field->getAutoAnnotateButtonIcon());
     }
 
     public function test_perform_returns_pending_suggestions(): void
