@@ -2,6 +2,52 @@
 
 All notable changes to `filament-image-labeler` will be documented in this file.
 
+## v0.3.0 - auto annotation  - 2026-09-29
+
+### What's new
+
+Automatic annotation — opt-in, and the package never decides *how* you detect. You override one method on your model and return labeled shapes; the editor drops them onto the canvas as ordinary, fully editable annotations.
+
+```php
+use Zielu92\FilamentImageLabeler\Concerns\HasAnnotations;
+use Zielu92\FilamentImageLabeler\Support\AnnotationSuggestion;
+
+class Photo extends Model
+{
+    use HasAnnotations;
+
+    public function autoAnnotate(string $url, ?string $path): ?array
+    {
+        return [
+            AnnotationSuggestion::box('USB Port', 0.42, 0.11, 0.18, 0.09),
+            AnnotationSuggestion::polygon('Heatsink', [[0.1, 0.1], [0.3, 0.12], [0.28, 0.4]]),
+        ];
+    }
+}
+
+ImageLabel::make('annotations')
+    ->image(/* ... */)
+    ->enableAutoAnnotation()         // toolbar "Annotate" button
+    ->autoAnnotateOnLoad()           // optional: run when the image appears
+    ->autoAnnotateButton(false)      // optional: hide the button (load-only)
+    ->autoAnnotateButtonLabel('Detect')
+    ->autoAnnotateButtonIcon('heroicon-m-magnifying-glass');
+What you get:
+- Your engine, per model. YOLO / a hosted detection API / a vision LLM / an ONNX sidecar / test fixtures — anything. Different models may annotate completely differently, branch per record, or opt out by returning null.
+- Normalized DTO contract. AnnotationSuggestion::box() / ::polygon() (raw ['label' => …, 'box' => …] arrays also accepted); coordinates are 0..1 fractions, so your code never needs image dimensions.
+- Shapes, not second-class proposals. Suggestions arrive as regular editor shapes: rendered, selectable, movable/resizable with native handles, undo, labels panel, saved through the existing syncAnnotations().
+- Editor collapses when there's no image — canvas, toolbar and panels only appear while an image is set.
+- Security guardrails. The optional local-file hand-off ($path) never requests your own host, refuses private / loopback / link-local (cloud-metadata!) destinations and never follows redirects; opt out via filament-image-labeler.allow_private_image_hosts. In-flight results are discarded if the image changes.
+- No new composer dependencies. Translations en/de/pl.
+Fixed / other
+- Persistence docs corrected: target.selector uses Annotorious' internal geometry (RECTANGLE / POLYGON + bounds) — the old SvgSelector sample never matched what was actually stored.
+Upgrade notes
+- Fully backward compatible; the feature is dormant until you override autoAnnotate() and enable the field.
+- If you auto-annotated during the v0.3.0-beta period with the pre-release code, shapes saved in that window may be invisible — clear and re-annotate.
+- Publishable config (optional): php artisan vendor:publish --tag=filament-image-labeler-config
+Full changelog: v0.2.0 → v0.3.0 · PR #7 · docs (https://github.com/zielu92/filament-image-labeler#automatic-annotation)
+
+```
 ## v0.3.0 - 2026-09-29
 
 - **Automatic annotation (opt-in).** `HasAnnotations::autoAnnotate(url, path)` hook — override it per model to return `AnnotationSuggestion`s (builders: `::box()` / `::polygon()`, normalized 0..1 coordinates; raw arrays accepted); the detection backend is entirely yours, the package adds no dependencies. `ImageLabel::enableAutoAnnotation()` adds a toolbar Annotate button, `->autoAnnotateOnLoad()` also runs it when the image appears, `->autoAnnotateButton(false)` hides the button for hands-off load-only annotation; synchronous execution with spinner, suggestions applied as normal editor shapes (rendered, selectable, movable/resizable via native handles, labels panel, colors, undo), errors surfaced under the toolbar. Pixel placement happens client-side against the displayed image, so no server read of the image is needed; `$path` is best-effort (plain paths, public `/storage` URLs, remote http(s) ≤ 20 MB — same-host URLs are never fetched from ourselves). Translations (en/de/pl).
