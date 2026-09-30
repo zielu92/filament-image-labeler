@@ -20,65 +20,75 @@ class FetchesImage
         }
 
         // Never let is_file()/stat hit a stream wrapper.
-        if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $url) === 1) {
-            if (preg_match('#^https?://#i', $url) !== 1) {
-                return null;
-            }
-
-            $path = parse_url($url, PHP_URL_PATH);
-
-            if (static::isSameHost($url)) {
-                // Serve-the-same-app URL: only accept plain public files
-                // (/storage/... via the artisan storage:link symlink).
-                if (! is_string($path) || ! str_starts_with($path, '/storage/')) {
-                    return null;
-                }
-
-                $public = realpath(public_path($path));
-                $root = realpath(public_path('storage'));
-
-                return $public !== false && $root !== false && str_starts_with($public, $root) && is_file($public)
-                    ? $public
-                    : null;
-            }
-
-            if (! filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN)) {
-                return null;
-            }
-
-            $host = parse_url($url, PHP_URL_HOST);
-
-            if (! is_string($host) || ! static::isHostAllowed($host)) {
-                return null;
-            }
-
-            $data = @file_get_contents(
-                $url,
-                false,
-                stream_context_create([
-                    'http' => ['timeout' => 15, 'follow_location' => 0, 'max_redirects' => 1],
-                    'https' => ['timeout' => 15, 'follow_location' => 0, 'max_redirects' => 1],
-                ]),
-                0,
-                self::MAX_BYTES + 1,
-            );
-
-            if ($data === false || strlen($data) > self::MAX_BYTES) {
-                return null;
-            }
-
-            $temp = tempnam(sys_get_temp_dir(), 'fil-ill-');
-
-            if ($temp === false || file_put_contents($temp, $data) === false) {
-                return null;
-            }
-
-            app()->terminating(fn () => @unlink($temp));
-
-            return $temp;
+        if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $url) !== 1) {
+            return is_file($url) ? $url : null;
         }
 
-        return is_file($url) ? $url : null;
+        if (preg_match('#^https?://#i', $url) !== 1) {
+            return null;
+        }
+
+        return static::isSameHost($url)
+            ? static::fromSameHostUrl($url)
+            : static::fetchRemote($url);
+    }
+
+    /**
+     * Serve-the-same-app URL: only accept plain public files
+     * (/storage/... via the artisan storage:link symlink).
+     */
+    protected static function fromSameHostUrl(string $url): ?string
+    {
+        $path = parse_url($url, PHP_URL_PATH);
+
+        if (! is_string($path) || ! str_starts_with($path, '/storage/')) {
+            return null;
+        }
+
+        $public = realpath(public_path($path));
+        $root = realpath(public_path('storage'));
+
+        return $public !== false && $root !== false && str_starts_with($public, $root) && is_file($public)
+            ? $public
+            : null;
+    }
+
+    protected static function fetchRemote(string $url): ?string
+    {
+        if (! filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN)) {
+            return null;
+        }
+
+        $host = parse_url($url, PHP_URL_HOST);
+
+        if (! is_string($host) || ! static::isHostAllowed($host)) {
+            return null;
+        }
+
+        $data = @file_get_contents(
+            $url,
+            false,
+            stream_context_create([
+                'http' => ['timeout' => 15, 'follow_location' => 0, 'max_redirects' => 1],
+                'https' => ['timeout' => 15, 'follow_location' => 0, 'max_redirects' => 1],
+            ]),
+            0,
+            self::MAX_BYTES + 1,
+        );
+
+        if ($data === false || strlen($data) > self::MAX_BYTES) {
+            return null;
+        }
+
+        $temp = tempnam(sys_get_temp_dir(), 'fil-ill-');
+
+        if ($temp === false || file_put_contents($temp, $data) === false) {
+            return null;
+        }
+
+        app()->terminating(fn () => @unlink($temp));
+
+        return $temp;
     }
 
     /**
