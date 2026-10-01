@@ -10,6 +10,6 @@
         "prettier": "^3.5.3"
     },
     "dependencies": {
-        "@annotorious/annotorious": "^3.8.2"
+        "@annotorious/annotorious": "^3.9.2"
     }
 }
