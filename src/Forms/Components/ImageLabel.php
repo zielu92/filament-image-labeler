@@ -7,6 +7,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Field;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 use Zielu92\FilamentImageLabeler\Support\AnnotationSuggestion;
 use Zielu92\FilamentImageLabeler\Support\FetchesImage;
@@ -269,7 +270,12 @@ class ImageLabel extends Field
     {
         try {
             $record = $this->getRecord() ?? $this->getModelInstance();
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            Log::warning('ImageLabel: could not resolve auto-annotate record.', [
+                'field' => $this->getName(),
+                'exception' => $e,
+            ]);
+
             return null;
         }
 
