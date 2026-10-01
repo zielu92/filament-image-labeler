@@ -2,7 +2,7 @@
 
 All notable changes to `filament-image-labeler` will be documented in this file.
 
-## Unreleased
+## v0.3.2 - 2026-10-01
 
 ### Build
 - CI hardening: all third-party GitHub Actions pinned to full commit SHAs (immutable code, cf. tj-actions/changed-files compromise), and Dependabot updates now wait behind a 5-day cooldown so broken releases surface first. No impact on package consumers.
