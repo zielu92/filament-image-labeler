@@ -2,6 +2,17 @@
 
 All notable changes to `filament-image-labeler` will be documented in this file.
 
+## v0.3.1 - 2026-10-01
+
+### Fixed
+- Auto-annotation failures are no longer swallowed silently — `ImageLabel::resolveAutoAnnotateRecord()` now logs the Throwable as a warning instead of returning null.
+
+### Changed
+- `FetchesImage::localize()` split into `localizeRemoteUrl()`, `localizeSameHostUrl()` and `download()` — behavior unchanged, readability refactor.
+
+### Build
+- Patched `nanoid` 5.1.11 → 5.1.16 via `npm audit fix`.
+
 ## v0.3.0 - auto annotation  - 2026-09-29
 
 ### What's new
