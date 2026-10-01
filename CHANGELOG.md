@@ -2,21 +2,12 @@
 
 All notable changes to `filament-image-labeler` will be documented in this file.
 
-## v0.3.1 - code clean up and security upgrade  - 2026-10-01
-
-### Fixed
-
-- Auto-annotation failures are now logged instead of silently swallowed
-
-### Changed
-
-- `FetchesImage::localize()` split into smaller methods (no behavior change)
+## Unreleased
 
 ### Build
+- CI hardening: all third-party GitHub Actions pinned to full commit SHAs (immutable code, cf. tj-actions/changed-files compromise), and Dependabot updates now wait behind a 5-day cooldown so broken releases surface first. No impact on package consumers.
 
-- Patched nanoid 5.1.11 → 5.1.16 (npm audit)
-
-## v0.3.1 - 2026-10-01
+## v0.3.1 - code clean up and security upgrade - 2026-10-01
 
 ### Fixed
 
