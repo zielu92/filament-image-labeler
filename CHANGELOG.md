@@ -2,15 +2,32 @@
 
 All notable changes to `filament-image-labeler` will be documented in this file.
 
+## v0.3.1 - code clean up and security upgrade  - 2026-10-01
+
+### Fixed
+
+- Auto-annotation failures are now logged instead of silently swallowed
+
+### Changed
+
+- `FetchesImage::localize()` split into smaller methods (no behavior change)
+
+### Build
+
+- Patched nanoid 5.1.11 → 5.1.16 (npm audit)
+
 ## v0.3.1 - 2026-10-01
 
 ### Fixed
+
 - Auto-annotation failures are no longer swallowed silently — `ImageLabel::resolveAutoAnnotateRecord()` now logs the Throwable as a warning instead of returning null.
 
 ### Changed
+
 - `FetchesImage::localize()` split into `localizeRemoteUrl()`, `localizeSameHostUrl()` and `download()` — behavior unchanged, readability refactor.
 
 ### Build
+
 - Patched `nanoid` 5.1.11 → 5.1.16 via `npm audit fix`.
 
 ## v0.3.0 - auto annotation  - 2026-09-29
@@ -57,6 +74,7 @@ Upgrade notes
 - If you auto-annotated during the v0.3.0-beta period with the pre-release code, shapes saved in that window may be invisible — clear and re-annotate.
 - Publishable config (optional): php artisan vendor:publish --tag=filament-image-labeler-config
 Full changelog: v0.2.0 → v0.3.0 · PR #7 · docs (https://github.com/zielu92/filament-image-labeler#automatic-annotation)
+
 
 ```
 ## v0.3.0 - 2026-09-29
