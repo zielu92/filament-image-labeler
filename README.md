@@ -1,5 +1,11 @@
 # Filament Image Labeler
 
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/zielu92/filament-image-labeler.svg?style=flat-square)](https://packagist.org/packages/zielu92/filament-image-labeler)
+[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/zielu92/filament-image-labeler/run-tests.yml?branch=master&label=tests&style=flat-square)](https://github.com/zielu92/filament-image-labeler/actions?query=workflow%3Arun-tests+branch%3Amaster)
+[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/zielu92/filament-image-labeler/fix-php-code-style-issues.yml?branch=master&label=code%20style&style=flat-square)](https://github.com/zielu92/filament-image-labeler/actions?query=workflow%3A"Fix+PHP+code+styling"+branch%3Amaster)
+[![Total Downloads](https://img.shields.io/packagist/dt/zielu92/filament-image-labeler.svg?style=flat-square)](https://packagist.org/packages/zielu92/filament-image-labeler)
+[![Scanned by Plumb](https://plumbphp.dev/badges/zielu92/filament-image-labeler/scanned.svg)](https://plumbphp.dev/zielu92/filament-image-labeler)
+
 A Filament plugin for labeling images — draw rectangles and polygons, name them, color them, all inside one form field. Built on [Annotorious](https://annotorious.dev/), with a polymorphic persistence layer so any Eloquent model can keep its annotations.
 
 <img src=".github/assets/screenshot.png" alt="Filament Image Labeler — label editor with toolbar, Labels panel and Label Details panel" width="700" />
