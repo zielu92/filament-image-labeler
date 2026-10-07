@@ -17,10 +17,11 @@ Locked spec for **entity-linked annotations**: a shape optionally bound to an El
 <!-- one line per closed ticket -->
 
 - [Research: cheapest search plumbing for canvas-embedded entity picker](tickets/wf-001.md) — B recommended: searchable Select in a field Action modal (`mountAction`+`schemaComponent`, already used at blade:388), zero new JS/deps; C = ExposedLivewireMethod + Alpine combobox if modal rejected. A strictly dominated; full-text E rejected.
+- [Search UX across heterogeneous entity types](tickets/wf-002.md) — inline native searchable Select in Details panel (no new combobox lib), single box with type-grouped results, bind needs active shape, seeds empty label only, entity gets its own marker, unbind explicit. (wf-001's B-vs-C dissolved: user rejected modal, making A/C the live pair; wf-003 will price A vs C.)
 
 ## Not yet specified
 
-- Editor chrome for entity pills in the Label Details panel (icon, color, layout) — needs concrete UI; graduate as a prototype ticket once search behavior is settled.
+- Visual styling of the entity chip/pill in the Details panel (icon, color, layout) — placement settled by wf-002, chrome graduate to a prototype ticket once the Details-panel structure is known.
 - Read-only/view-page rendering of linked entities outside the editor.
 - Translation strings + a11y for all new UI.
 
