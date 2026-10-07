@@ -16,7 +16,7 @@ Locked spec for **entity-linked annotations**: a shape optionally bound to an El
 
 <!-- one line per closed ticket -->
 
-- [Research: cheapest search plumbing for canvas-embedded entity picker](tickets/wf-001.md) — field Action modal + native searchable Select (per-type `getSearchResultsUsing`) over the repo's existing actions RPC; zero new JS/deps; fallback = exposed Livewire search + Alpine combobox. Branch `research/wf-001-search-plumbing`.
+- [Research: cheapest search plumbing for canvas-embedded entity picker](tickets/wf-001.md) — B recommended: searchable Select in a field Action modal (`mountAction`+`schemaComponent`, already used at blade:388), zero new JS/deps; C = ExposedLivewireMethod + Alpine combobox if modal rejected. A strictly dominated; full-text E rejected.
 
 ## Not yet specified
 
