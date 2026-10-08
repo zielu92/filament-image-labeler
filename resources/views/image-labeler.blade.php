@@ -118,7 +118,15 @@
                 }
                 this.picker.busy = true;
                 try {
-                    this.picker.results = (await this.callSchema('searchEntities', { search: term })) || [];
+                    const raw = (await this.callSchema('searchEntities', { search: term })) || [];
+                    const seen = {};
+                    this.picker.results = raw.filter(r => {
+                        const k = r.type + '|' + r.display;
+                        if (seen[k]) return false;
+                        seen[k] = 1;
+
+                        return true;
+                    });
                     this.picker.index = 0;
                     this.picker.open = true;
                 } finally {
@@ -126,13 +134,37 @@
                 }
             },
 
+            get pickerGroups() {
+                const out = [];
+                (this.picker.results || []).forEach((row, idx) => {
+                    let g = out.find(x => x.type === row.type);
+                    if (! g) {
+                        g = { type: row.type, label: row.label, rows: [] };
+                        out.push(g);
+                    }
+                    g.rows.push({ row: row, idx: idx });
+                });
+
+                return out;
+            },
+
             bindEntity(ref, display, typeLabel) {
                 const shape = this.activeShape;
                 if (! shape) return;
                 this.entityCache = { ...this.entityCache, [this.entityKey(ref)]: { display: display, label: typeLabel } };
-                this.state = (this.state || []).map(s => s.id === shape.id
-                    ? { ...s, entity: ref, label: (s.label ?? '') === '' ? display : s.label }
-                    : s);
+                this.state = (this.state || []).map(s => {
+                    if (s.id !== shape.id) return s;
+                    const seeded = (s.label ?? '') === '';
+                    const next = seeded ? display : s.label;
+                    let color = s.color;
+                    if (seeded && next) {
+                        // A seeded label must pick up color exactly like a typed one (commitName).
+                        const existing = this.labelGroups.find(g => g.label === next);
+                        color = existing ? existing.color : this.defaultColorFor(next);
+                    }
+
+                    return { ...s, entity: ref, label: next, color: color };
+                });
                 this.picker = { open: false, term: '', results: [], busy: false, index: 0 };
             },
 
@@ -917,15 +949,14 @@
                                 <div x-show="activeEntity" class="filament-il-entity" x-cloak>
                                     <span class="filament-il-entity-type" x-text="entityTypeLabel(activeEntity)"></span>
                                     <span class="filament-il-entity-display" x-text="entityDisplay(activeEntity)"></span>
-                                    <x-filament::icon-button
+                                    <button
+                                        type="button"
                                         x-show="linksEnabled"
-                                        icon="heroicon-m-x-mark"
-                                        color="gray"
-                                        size="xs"
                                         x-on:click.stop="unlinkEntity()"
+                                        class="filament-il-entity-unlink"
                                         title="{{ __('filament-image-labeler::image-labeler.entity.unlink') }}"
                                         aria-label="{{ __('filament-image-labeler::image-labeler.entity.unlink') }}"
-                                    />
+                                    >&times;</button>
                                 </div>
 
                                 <div x-show="!activeEntity && linksEnabled" class="filament-il-picker" @click.outside="picker.open = false">
@@ -948,17 +979,21 @@
                                     </x-filament::input.wrapper>
 
                                     <ul x-show="picker.open && picker.results.length" class="filament-il-results" role="listbox" x-cloak>
-                                        <template x-for="(row, i) in picker.results" :key="row.type + ':' + row.id">
-                                            <li
-                                                role="option"
-                                                class="filament-il-result"
-                                                :class="i === picker.index ? 'filament-il-result-active' : ''"
-                                                :aria-selected="i === picker.index"
-                                                x-on:click="linkEntity(row)"
-                                                x-on:mouseenter="picker.index = i"
-                                            >
-                                                <span class="filament-il-result-type" x-text="row.label"></span>
-                                                <span x-text="row.display"></span>
+                                        <template x-for="g in pickerGroups" :key="g.type">
+                                            <li role="presentation">
+                                                <span class="filament-il-result-group" x-text="g.label"></span>
+                                                <template x-for="item in g.rows" :key="item.row.type + ':' + item.row.id">
+                                                    <div
+                                                        role="option"
+                                                        class="filament-il-result"
+                                                        :class="item.idx === picker.index ? 'filament-il-result-active' : ''"
+                                                        :aria-selected="item.idx === picker.index"
+                                                        x-on:click="linkEntity(item.row)"
+                                                        x-on:mouseenter="picker.index = item.idx"
+                                                    >
+                                                        <span x-text="item.row.display"></span>
+                                                    </div>
+                                                </template>
                                             </li>
                                         </template>
                                     </ul>
