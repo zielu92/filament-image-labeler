@@ -33,6 +33,11 @@
             autoError: '',
             _autoRunKey: null,
 
+            entitySection: {{ $field->hasLinkableTypes() ? 'true' : 'false' }},
+            linksEnabled: {{ ($field->hasLinkableTypes() && ! $field->isReadOnly()) ? 'true' : 'false' }},
+            entityCache: {},
+            picker: { open: false, term: '', results: [], busy: false, index: 0 },
+
             hashColor(value) {
                 let hash = 0;
                 for (let i = 0; i < value.length; i++) {
@@ -44,6 +49,110 @@
 
             defaultColorFor(label) {
                 return label ? this.hashColor(label) : this.noneColor;
+            },
+
+            callSchema(method, args) {
+                return this.$wire.call('callSchemaComponentMethod', '{{ $field->getKey() }}', method, args);
+            },
+
+            entityKey(ref) {
+                return ref.type + ':' + ref.id;
+            },
+
+            entityFallback(ref) {
+                const parts = String(ref.type || '').split('\\');
+
+                return parts[parts.length - 1] + ' #' + ref.id;
+            },
+
+            entityDisplay(ref) {
+                if (! ref) return '';
+                const cached = this.entityCache[this.entityKey(ref)];
+
+                return (cached && cached.display) || this.entityFallback(ref);
+            },
+
+            entityTypeLabel(ref) {
+                if (! ref) return '';
+                const cached = this.entityCache[this.entityKey(ref)];
+                if (cached && cached.label) return cached.label;
+                const parts = String(ref.type || '').split('\\');
+
+                return parts[parts.length - 1].replace(/([a-z])([A-Z])/g, '$1 $2');
+            },
+
+            get activeShape() {
+                return (this.shapes || []).find(s => this.selIds.includes(s.id)) || null;
+            },
+
+            get activeEntity() {
+                const s = this.activeShape;
+
+                return s && s.entity && s.entity.type ? s.entity : null;
+            },
+
+            movePicker(delta) {
+                const n = this.picker.results.length;
+                if (! n) return;
+                this.picker.index = (this.picker.index + delta + n) % n;
+            },
+
+            pickAt(index) {
+                const row = this.picker.results[index];
+                if (row) this.linkEntity(row);
+            },
+
+            async searchLink() {
+                const term = (this.picker.term || '').trim();
+                if (! term) {
+                    this.picker.results = [];
+                    this.picker.open = false;
+
+                    return;
+                }
+                this.picker.busy = true;
+                try {
+                    this.picker.results = (await this.callSchema('searchEntities', { search: term })) || [];
+                    this.picker.index = 0;
+                    this.picker.open = true;
+                } finally {
+                    this.picker.busy = false;
+                }
+            },
+
+            linkEntity(row) {
+                const shape = this.activeShape;
+                if (! shape) return;
+                const ref = { type: row.type, id: row.id };
+                this.entityCache = { ...this.entityCache, [this.entityKey(ref)]: { display: row.display, label: row.label } };
+                this.state = (this.state || []).map(s => s.id === shape.id
+                    ? { ...s, entity: ref, label: (s.label ?? '') === '' ? row.display : s.label }
+                    : s);
+                this.picker = { open: false, term: '', results: [], busy: false, index: 0 };
+            },
+
+            unlinkEntity() {
+                const shape = this.activeShape;
+                if (! shape) return;
+                this.state = (this.state || []).map(s => s.id === shape.id ? { ...s, entity: null } : s);
+            },
+
+            async ensureEntities() {
+                if (! this.entitySection) return;
+                const seen = {};
+                const missing = [];
+                (this.state || []).forEach(s => {
+                    if (! s.entity || ! s.entity.type) return;
+                    const k = this.entityKey(s.entity);
+                    if (seen[k]) return;
+                    seen[k] = 1;
+                    if (! (k in this.entityCache)) missing.push(s.entity);
+                });
+                if (! missing.length) return;
+                try {
+                    const resolved = await this.callSchema('resolveEntities', { refs: missing });
+                    this.entityCache = { ...this.entityCache, ...(resolved || {}) };
+                } catch (e) {}
             },
 
             metaFor(id) {
@@ -124,6 +233,7 @@
                             target: annotation.target,
                             label: meta.label,
                             color: meta.color,
+                            ...(meta.entity ? { entity: meta.entity } : {}),
                         }];
                     }
                     this.refreshHistory();
@@ -139,7 +249,7 @@
                 this.anno.on('deleteAnnotation', (annotation) => {
                     const shape = (this.state || []).find(s => s.id === annotation.id);
                     if (shape) {
-                        this.metaCache[shape.id] = { label: shape.label, color: shape.color || this.noneColor };
+                        this.metaCache[shape.id] = { label: shape.label, color: shape.color || this.noneColor, entity: shape.entity || null };
                     }
                     this.state = (this.state || []).filter(s => s.id !== annotation.id);
                     this.refreshHistory();
@@ -165,6 +275,7 @@
                     this.initAnnotorious();
                     this.updateScale();
                     this.maybeAutoRun();
+                    this.ensureEntities();
 
                     // External (server-side) state changes: sync geometry into the canvas.
                     this.$watch('state', (newState) => {
@@ -178,6 +289,7 @@
                             if (!current.includes(ann.id)) this.anno.addAnnotation(ann);
                         });
                         this.restyle();
+                        this.ensureEntities();
                     });
 
                     // Details fields follow the active label.
@@ -389,6 +501,14 @@
 
                     if ((this.imageUrl || '').split('?')[0].split('#')[0] !== imageKey) return;
 
+                    const refs = (pending || []).filter(p => p.entity && p.entity.type).map(p => p.entity);
+                    if (refs.length) {
+                        try {
+                            const resolved = await this.callSchema('resolveEntities', { refs });
+                            this.entityCache = { ...this.entityCache, ...(resolved || {}) };
+                        } catch (e) {}
+                    }
+
                     this.applyAutoShapes((pending || []).map(p => this.suggestionShape(p)));
                 } catch (e) {
                     this.autoError = (e && (e.message || e)) || @js(__('filament-image-labeler::image-labeler.auto.error'));
@@ -420,11 +540,15 @@
                     selector = { type: 'POLYGON', geometry: { points: pts, bounds: { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) } } };
                 }
 
+                const entity = (s.entity && s.entity.type) ? s.entity : null;
+                const label = s.label || (entity ? ((this.entityCache[entity.type + ':' + entity.id] || {}).display || '') : '');
+
                 return {
                     id: s.id,
                     target: { selector },
-                    label: s.label || '',
-                    color: this.defaultColorFor(s.label || ''),
+                    label: label,
+                    color: this.defaultColorFor(label),
+                    entity: entity,
                 };
             },
 
@@ -746,6 +870,68 @@
                                 </x-filament::input.wrapper>
                             </div>
                         </div>
+
+                        @if ($field->hasLinkableTypes())
+                            <div>
+                                <label class="filament-il-field-label">
+                                    {{ __('filament-image-labeler::image-labeler.entity.title') }}
+                                </label>
+
+                                <div x-show="activeEntity" class="filament-il-entity" x-cloak>
+                                    <span class="filament-il-entity-type" x-text="entityTypeLabel(activeEntity)"></span>
+                                    <span class="filament-il-entity-display" x-text="entityDisplay(activeEntity)"></span>
+                                    <x-filament::icon-button
+                                        x-show="linksEnabled"
+                                        icon="heroicon-m-x-mark"
+                                        color="gray"
+                                        size="xs"
+                                        x-on:click.stop="unlinkEntity()"
+                                        title="{{ __('filament-image-labeler::image-labeler.entity.unlink') }}"
+                                        aria-label="{{ __('filament-image-labeler::image-labeler.entity.unlink') }}"
+                                    />
+                                </div>
+
+                                <div x-show="!activeEntity && linksEnabled" class="filament-il-picker" @click.outside="picker.open = false">
+                                    <x-filament::input.wrapper>
+                                        <x-filament::input
+                                            type="text"
+                                            x-ref="linkInput"
+                                            x-model="picker.term"
+                                            x-on:input.debounce.300ms="searchLink()"
+                                            x-on:focus="picker.open = true"
+                                            x-on:keydown.arrow-down.prevent="movePicker(1)"
+                                            x-on:keydown.arrow-up.prevent="movePicker(-1)"
+                                            x-on:keydown.enter.prevent="pickAt(picker.index)"
+                                            x-on:keydown.escape.prevent="picker.open = false"
+                                            x-bind:disabled="!activeShape"
+                                            role="combobox"
+                                            aria-autocomplete="list"
+                                            placeholder="{{ __('filament-image-labeler::image-labeler.entity.search_placeholder') }}"
+                                        />
+                                    </x-filament::input.wrapper>
+
+                                    <ul x-show="picker.open && picker.results.length" class="filament-il-results" role="listbox" x-cloak>
+                                        <template x-for="(row, i) in picker.results" :key="row.type + ':' + row.id">
+                                            <li
+                                                role="option"
+                                                class="filament-il-result"
+                                                :class="i === picker.index ? 'filament-il-result-active' : ''"
+                                                :aria-selected="i === picker.index"
+                                                x-on:click="linkEntity(row)"
+                                                x-on:mouseenter="picker.index = i"
+                                            >
+                                                <span class="filament-il-result-type" x-text="row.label"></span>
+                                                <span x-text="row.display"></span>
+                                            </li>
+                                        </template>
+                                    </ul>
+
+                                    <p x-show="picker.open && !picker.results.length && (picker.term || '').trim()" class="filament-il-empty" x-cloak>
+                                        {{ __('filament-image-labeler::image-labeler.entity.no_results') }}
+                                    </p>
+                                </div>
+                            </div>
+                        @endif
                     </div>
 
                     <p x-show="!detailsVisible" class="filament-il-empty">

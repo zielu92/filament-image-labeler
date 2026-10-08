@@ -231,7 +231,7 @@ class ImageLabel extends Field
     #[Renderless]
     public function searchEntities(string $search): array
     {
-        if (blank($search)) {
+        if (blank($search) || ! $this->hasLinkableTypes()) {
             return [];
         }
 
@@ -260,6 +260,10 @@ class ImageLabel extends Field
     #[Renderless]
     public function resolveEntities(array $refs): array
     {
+        if (! $this->hasLinkableTypes()) {
+            return [];
+        }
+
         $types = [];
         $ids = [];
 
