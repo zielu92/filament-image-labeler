@@ -28,6 +28,7 @@ return [
     'entity' => [
         'title' => 'Entity',
         'search_placeholder' => 'Search entities…',
+        'create' => 'Create',
         'unlink' => 'Unlink entity',
         'no_results' => 'No matching entities.',
     ],

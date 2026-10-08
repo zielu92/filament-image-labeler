@@ -37,6 +37,8 @@
             linksEnabled: {{ ($field->hasLinkableTypes() && ! $field->isReadOnly()) ? 'true' : 'false' }},
             entityCache: {},
             picker: { open: false, term: '', results: [], busy: false, index: 0 },
+            linkTypes: @js($field->getEntityTypesPayload()),
+            createWord: @js(__('filament-image-labeler::image-labeler.entity.create')),
 
             hashColor(value) {
                 let hash = 0;
@@ -91,6 +93,10 @@
                 return s && s.entity && s.entity.type ? s.entity : null;
             },
 
+            get creatableTypes() {
+                return (this.linkTypes || []).filter(t => t.creatable);
+            },
+
             movePicker(delta) {
                 const n = this.picker.results.length;
                 if (! n) return;
@@ -120,15 +126,46 @@
                 }
             },
 
-            linkEntity(row) {
+            bindEntity(ref, display, typeLabel) {
                 const shape = this.activeShape;
                 if (! shape) return;
-                const ref = { type: row.type, id: row.id };
-                this.entityCache = { ...this.entityCache, [this.entityKey(ref)]: { display: row.display, label: row.label } };
+                this.entityCache = { ...this.entityCache, [this.entityKey(ref)]: { display: display, label: typeLabel } };
                 this.state = (this.state || []).map(s => s.id === shape.id
-                    ? { ...s, entity: ref, label: (s.label ?? '') === '' ? row.display : s.label }
+                    ? { ...s, entity: ref, label: (s.label ?? '') === '' ? display : s.label }
                     : s);
                 this.picker = { open: false, term: '', results: [], busy: false, index: 0 };
+            },
+
+            linkEntity(row) {
+                this.bindEntity({ type: row.type, id: row.id }, row.display, row.label);
+            },
+
+            async createEntity(t) {
+                if (! this.activeShape) return;
+                this.picker.open = false;
+
+                let result;
+                try {
+                    result = await this.$wire.call('mountAction', t.action, [], { schemaComponent: '{{ $field->getKey() }}' });
+                } catch (e) {
+                    return;
+                }
+
+                if (! result || result.id === null || result.id === undefined) return;
+
+                const ref = { type: t.type, id: result.id };
+                let display = '';
+                let typeLabel = t.label;
+                try {
+                    const resolved = await this.callSchema('resolveEntities', { refs: [ref] });
+                    const entry = (resolved || {})[this.entityKey(ref)];
+                    if (entry) {
+                        display = entry.display;
+                        typeLabel = entry.label;
+                    }
+                } catch (e) {}
+
+                this.bindEntity(ref, display || this.entityFallback(ref), typeLabel);
             },
 
             unlinkEntity() {
@@ -926,7 +963,19 @@
                                         </template>
                                     </ul>
 
-                                    <p x-show="picker.open && !picker.results.length && (picker.term || '').trim()" class="filament-il-empty" x-cloak>
+                                    <ul x-show="picker.open && creatableTypes.length" class="filament-il-results" x-cloak>
+                                        <template x-for="t in creatableTypes" :key="'create:' + t.type">
+                                            <li
+                                                class="filament-il-result"
+                                                x-on:click="createEntity(t)"
+                                            >
+                                                <span class="filament-il-result-type">{{ __('filament-image-labeler::image-labeler.entity.create') }}</span>
+                                                <span x-text="t.label"></span>
+                                            </li>
+                                        </template>
+                                    </ul>
+
+                                    <p x-show="picker.open && !picker.results.length && !creatableTypes.length && (picker.term || '').trim()" class="filament-il-empty" x-cloak>
                                         {{ __('filament-image-labeler::image-labeler.entity.no_results') }}
                                     </p>
                                 </div>

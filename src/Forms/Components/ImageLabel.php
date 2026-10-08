@@ -4,6 +4,7 @@ namespace Zielu92\FilamentImageLabeler\Forms\Components;
 
 use Closure;
 use Filament\Actions\Action;
+use Filament\Actions\CreateAction;
 use Filament\Forms\Components\Field;
 use Filament\Support\Components\Attributes\ExposedLivewireMethod;
 use Illuminate\Contracts\Support\Htmlable;
@@ -65,6 +66,7 @@ class ImageLabel extends Field
         $this->registerActions([
             Action::make('autoAnnotate')
                 ->action(fn (Model | array | null $record): array => $this->performAutoAnnotate($record)),
+            fn (): array => $this->creatableActions(),
         ]);
     }
 
@@ -317,6 +319,76 @@ class ImageLabel extends Field
         }
 
         return $resolved;
+    }
+
+    /**
+     * Picker payload for the editor: which linkable types exist, how they
+     * are named and which can be created from the editor (and under which
+     * registered action name).
+     *
+     * @return list<array{type: string, label: string, creatable: bool, action: string}>
+     */
+    public function getEntityTypesPayload(): array
+    {
+        if (! $this->hasLinkableTypes()) {
+            return [];
+        }
+
+        return array_map(
+            fn (LinkableType $type): array => [
+                'type' => $type->model,
+                'label' => $type->typeName(),
+                'creatable' => $type->isCreatable(),
+                'action' => $this->creationActionName($type->model),
+            ],
+            $this->getLinkableTypes(),
+        );
+    }
+
+    public function creationActionName(string $model): string
+    {
+        return 'createEntity' . Str::studly(class_basename($model));
+    }
+
+    /**
+     * One CreateAction per creatable type; the action returns the created
+     * ref so the editor can bind it to the active shape.
+     *
+     * @return list<Action>
+     */
+    protected function creatableActions(): array
+    {
+        if (! $this->hasLinkableTypes()) {
+            return [];
+        }
+
+        $actions = [];
+
+        foreach ($this->getLinkableTypes() as $type) {
+            if (! $type->isCreatable()) {
+                continue;
+            }
+
+            $actions[] = CreateAction::make($this->creationActionName($type->model))
+                ->label(__('filament-image-labeler::image-labeler.entity.create') . ' ' . $type->typeName())
+                ->model($type->model)
+                ->schema($type->getCreationSchema())
+                ->action(function (CreateAction $action, array $data): array {
+                    /** @var class-string<Model> $model */
+                    $model = $action->getModel();
+
+                    $record = $model::create($data);
+
+                    $action->success();
+
+                    return [
+                        'type' => $model,
+                        'id' => $record->getKey(),
+                    ];
+                });
+        }
+
+        return $actions;
     }
 
     public function enableAutoAnnotation(bool | Closure $condition = true): static

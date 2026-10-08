@@ -28,6 +28,7 @@ return [
     'entity' => [
         'title' => 'Encja',
         'search_placeholder' => 'Szukaj encji…',
+        'create' => 'Utwórz',
         'unlink' => 'Odłącz encję',
         'no_results' => 'Brak wyników.',
     ],

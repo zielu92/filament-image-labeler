@@ -79,13 +79,14 @@ final class LinkableType
     }
 
     /**
-     * @return array<array-key, mixed>|Schema
+     * Raw creation form schema (array or Closure) - handed to the create
+     * Action as-is, so Filament evaluates it with its own injections.
+     *
+     * @return array<array-key, mixed>|Closure|null
      */
-    public function getCreationSchema(): mixed
+    public function getCreationSchema(): array | Closure | null
     {
-        return $this->creationSchema instanceof Closure
-            ? ($this->creationSchema)()
-            : ($this->creationSchema ?? []);
+        return $this->creationSchema;
     }
 
     public function hasCustomDisplay(): bool

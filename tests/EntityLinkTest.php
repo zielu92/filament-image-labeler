@@ -346,6 +346,26 @@ class EntityLinkTest extends TestCase
         $this->assertArrayNotHasKey('nonsense:x', $resolved);
     }
 
+    public function test_creatable_payload_and_action_registration(): void
+    {
+        $field = ImageLabel::make('shapes')->linkableTo([
+            LinkableType::make(EntityPerson::class)
+                ->display(fn (Model $m): string => $m->first_name)
+                ->searchBy(['first_name']),
+            LinkableType::make(EntityBuilding::class)
+                ->creatable([]),
+        ]);
+
+        $payload = collect($field->getEntityTypesPayload())->keyBy('type');
+
+        $this->assertFalse($payload[EntityPerson::class]['creatable']);
+        $this->assertTrue($payload[EntityBuilding::class]['creatable']);
+        $this->assertSame('createEntityEntityBuilding', $payload[EntityBuilding::class]['action']);
+
+        $this->assertNotNull($field->getAction('createEntityEntityBuilding'));
+        $this->assertNull($field->getAction('createEntityEntityPerson'));
+    }
+
     // --- Suggestions payload (wf-007) ---
 
     public function test_suggestion_accepts_entity_as_ref_or_array_and_emits_pending(): void

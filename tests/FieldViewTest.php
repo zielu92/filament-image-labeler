@@ -37,7 +37,7 @@ class FieldViewTest extends TestCase
         foreach (['en', 'de', 'pl'] as $locale) {
             $strings = require __DIR__ . "/../resources/lang/{$locale}/image-labeler.php";
             $this->assertArrayHasKey('entity', $strings);
-            foreach (['title', 'search_placeholder', 'unlink', 'no_results'] as $key) {
+            foreach (['title', 'search_placeholder', 'create', 'unlink', 'no_results'] as $key) {
                 $this->assertNotEmpty($strings['entity'][$key], "{$locale}.entity.{$key}");
             }
         }
