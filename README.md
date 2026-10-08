@@ -19,6 +19,7 @@ A Filament plugin for labeling images — draw rectangles and polygons, name the
 - Two-way selection: click a shape to load its label, click a row to select the shape
 - Polymorphic `annotations` table — attach annotations to any model
 - `HasAnnotations` trait with `syncAnnotations()` for easy CRUD
+- **Optional entity links** — link a shape to a record in your own app (a `Person`, a `Building`, anything): an inline entity picker in the Label Details panel searches across the types you configure, the linked entity shows as a chip, and the first link seeds an empty label with the record's display string
 - **Optional automatic annotation** — a model overrides `autoAnnotate()` to turn an image into suggestions (any backend you like: local model, detection API, LLM); the editor gets an **Annotate** button, optionally auto-running when the image loads
 - Works with private/public file storage, Filament v5 compatible, translations (en/de/pl)
 
@@ -100,7 +101,7 @@ In edit mode: **Delete** / **Backspace** removes the selected shape(s), **Esc** 
 Map the field state onto `syncAnnotations()` — the app decides what goes into `metadata`:
 
 ```php
-/** @param array<array{id: string, target: array, label: string, color: string}> $shapes */
+/** @param array<array{id: string, target: array, label: string, color: string, entity?: array{type: string, id: int|string}|null}> $shapes */
 function annotationRows(array $shapes): array
 {
     return collect($shapes)->map(fn ($s) => [
@@ -180,7 +181,59 @@ $model->syncAnnotations([
 ]);
 ```
 
-**Behavior:** creates missing rows (matched by `annotation_id`), updates existing ones, deletes rows whose `annotation_id` is absent, `[]` clears all. `geometry` accepts an array or JSON string; `metadata` is nullable and yours to shape.
+**Behavior:** creates missing rows (matched by `annotation_id`), updates existing ones, deletes rows whose `annotation_id` is absent, `[]` clears all. `geometry` accepts an array or JSON string; `metadata` is nullable and yours to shape. Entity links: pass `entity_type` + `entity_id` as a pair; an explicit `null` clears the link, omitting the keys leaves the stored link untouched, and a half pair (one set, one null) is coerced to a full clear.
+
+## Entity links
+
+Opt in by declaring which record types shapes may link to:
+
+```php
+use Zielu92\FilamentImageLabeler\Forms\Components\ImageLabel;
+use Zielu92\FilamentImageLabeler\Support\LinkableType;
+
+ImageLabel::make('annotations')
+    ->linkableTo([
+        // Display convention: name column, else title, else "#<id>".
+        LinkableType::make(Building::class),
+
+        // Custom display: you must also tell the picker which columns to search.
+        LinkableType::make(Person::class)
+            ->display(fn (Person $person): string => "{$person->first_name} {$person->last_name}")
+            ->searchBy(['first_name', 'last_name']),
+
+        // Optional: allow creating a record from the picker with a form schema
+        // (pass your Filament resource's form here if you have one).
+        LinkableType::make(Vendor::class)
+            ->creatable(fn () => [TextInput::make('name')->required()]),
+    ])
+```
+
+What you get:
+
+- An inline **entity picker** in the Label Details panel (not a modal): type to search every linkable type at once, results grouped by type. Binding requires a selected shape; linking seeds the shape's label with the record's display string only when the label is empty.
+- An **entity chip** on the selected shape with unlink; relinking replaces the link.
+- For `creatable()` types, a create entry in the picker opens a modal with your schema; the new record binds to the selected shape.
+- Links persist in `entity_type` / `entity_id` columns on `annotations` (run `php artisan migrate`), not in `metadata`.
+
+Persisting a link — the field state carries `entity: ['type' => ..., 'id' => ...]` per shape; map it onto the sync keys:
+
+```php
+'entity_type' => $s['entity']['type'] ?? null,
+'entity_id' => $s['entity']['id'] ?? null,
+```
+
+Recommended: add the `LinkableEntity` trait to each linkable model so deleting a record nulls the links pointing at it:
+
+```php
+use Zielu92\FilamentImageLabeler\Concerns\LinkableEntity;
+
+class Person extends Model
+{
+    use LinkableEntity;
+}
+```
+
+Without the trait links dangle — the editor still renders them (with a class-name fallback) but nothing cleans them up. Stale links to types removed from `linkableTo()` keep rendering; only the picker stops offering them.
 
 ## Automatic annotation
 
