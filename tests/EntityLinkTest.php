@@ -366,6 +366,50 @@ class EntityLinkTest extends TestCase
         $this->assertNull($field->getAction('createEntityEntityPerson'));
     }
 
+    public function test_allow_entity_creation_restricts_by_list_false_and_allows(): void
+    {
+        $build = fn (array | bool $policy): ImageLabel => ImageLabel::make('shapes')
+            ->linkableTo([
+                LinkableType::make(EntityBuilding::class)->creatable([]),
+                LinkableType::make(EntityTag::class)
+                    ->display(fn (Model $m): string => (string) $m->code)
+                    ->searchBy(['code'])
+                    ->creatable([]),
+            ])
+            ->allowEntityCreation($policy);
+
+        $flags = fn (ImageLabel $f): array => collect($f->getEntityTypesPayload())->pluck('creatable', 'type')->all();
+
+        $all = $build(true);
+        $this->assertTrue($flags($all)[EntityBuilding::class]);
+        $this->assertTrue($flags($all)[EntityTag::class]);
+        $this->assertNotNull($all->getAction('createEntityEntityTag'));
+
+        $none = $build(false);
+        $this->assertSame([false, false], array_values($flags($none)));
+        $this->assertNull($none->getAction('createEntityEntityBuilding'));
+
+        $selected = $build([EntityTag::class]);
+        $this->assertSame([false, true], array_values($flags($selected)));
+        $this->assertNull($selected->getAction('createEntityEntityBuilding'));
+        $this->assertNotNull($selected->getAction('createEntityEntityTag'));
+    }
+
+    public function test_allow_entity_creation_rejects_unknown_or_non_creatable_type(): void
+    {
+        $field = ImageLabel::make('shapes')
+            ->linkableTo([
+                LinkableType::make(EntityBuilding::class),
+                LinkableType::make(EntityTag::class)
+                    ->display(fn (Model $m): string => (string) $m->code)
+                    ->searchBy(['code']),
+            ])
+            ->allowEntityCreation([EntityPerson::class]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $field->getEntityTypesPayload();
+    }
+
     // --- Suggestions payload (wf-007) ---
 
     public function test_suggestion_accepts_entity_as_ref_or_array_and_emits_pending(): void

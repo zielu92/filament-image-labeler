@@ -212,7 +212,7 @@ What you get:
 
 - An inline **entity picker** in the Label Details panel (not a modal): type to search every linkable type at once, results grouped by type. Binding requires a selected shape; linking seeds the shape's label with the record's display string only when the label is empty.
 - An **entity chip** on the selected shape with unlink; relinking replaces the link.
-- For `creatable()` types, a create entry in the picker opens a modal with your schema; the new record binds to the selected shape.
+- For `creatable()` types, a create entry in the picker opens a modal with your schema; the new record binds to the selected shape. Which types offer creation is controlled field-wide with `->allowEntityCreation()`: `true` (default) enables every type that has a schema, `false` disables all, and an array of model classes enables exactly those.
 - Links persist in `entity_type` / `entity_id` columns on `annotations` (run `php artisan migrate`), not in `metadata`.
 
 Persisting a link — the field state carries `entity: ['type' => ..., 'id' => ...]` per shape; map it onto the sync keys:

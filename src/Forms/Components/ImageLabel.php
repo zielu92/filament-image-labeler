@@ -58,6 +58,9 @@ class ImageLabel extends Field
     /** @var list<LinkableType>|null */
     protected ?array $resolvedLinkableTypes = null;
 
+    /** @var array<array-key, class-string>|bool | Closure */
+    protected array | bool | Closure $entityCreation = true;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -322,6 +325,65 @@ class ImageLabel extends Field
     }
 
     /**
+     * Field-level control over in-editor record creation:
+     *  - false: never offer creation,
+     *  - true (default): offer it for every linkable type that defines a
+     *    creatable() schema,
+     *  - array of model classes: exactly these types (each must define a
+     *    creatable() schema, or this throws at dev time).
+     *
+     * @param  array<array-key, class-string>|bool|Closure  $types
+     */
+    public function allowEntityCreation(array | bool | Closure $types = true): static
+    {
+        $this->entityCreation = $types;
+
+        return $this;
+    }
+
+    /**
+     * @return list<LinkableType>
+     */
+    protected function creatableTypes(): array
+    {
+        if (! $this->hasLinkableTypes()) {
+            return [];
+        }
+
+        $policy = $this->evaluate($this->entityCreation);
+
+        if ($policy === false) {
+            return [];
+        }
+
+        $types = array_values(array_filter(
+            $this->getLinkableTypes(),
+            fn (LinkableType $type): bool => $type->isCreatable(),
+        ));
+
+        if ($policy === true) {
+            return $types;
+        }
+
+        $byModel = [];
+        foreach ($types as $type) {
+            $byModel[$type->model] = $type;
+        }
+
+        $selected = [];
+
+        foreach ($policy as $model) {
+            if (! isset($byModel[$model])) {
+                throw new InvalidArgumentException("ImageLabel: [{$model}] is not a creatable linkable type - give it a creatable() schema or linkableTo() it first.");
+            }
+
+            $selected[] = $byModel[$model];
+        }
+
+        return $selected;
+    }
+
+    /**
      * Picker payload for the editor: which linkable types exist, how they
      * are named and which can be created from the editor (and under which
      * registered action name).
@@ -334,11 +396,16 @@ class ImageLabel extends Field
             return [];
         }
 
+        $creatable = array_map(
+            fn (LinkableType $type): string => $type->model,
+            $this->creatableTypes(),
+        );
+
         return array_map(
             fn (LinkableType $type): array => [
                 'type' => $type->model,
                 'label' => $type->typeName(),
-                'creatable' => $type->isCreatable(),
+                'creatable' => in_array($type->model, $creatable, true),
                 'action' => $this->creationActionName($type->model),
             ],
             $this->getLinkableTypes(),
@@ -351,24 +418,16 @@ class ImageLabel extends Field
     }
 
     /**
-     * One CreateAction per creatable type; the action returns the created
-     * ref so the editor can bind it to the active shape.
+     * One CreateAction per type enabled by allowEntityCreation(); the action
+     * returns the created ref so the editor can bind it to the active shape.
      *
      * @return list<Action>
      */
     protected function creatableActions(): array
     {
-        if (! $this->hasLinkableTypes()) {
-            return [];
-        }
-
         $actions = [];
 
-        foreach ($this->getLinkableTypes() as $type) {
-            if (! $type->isCreatable()) {
-                continue;
-            }
-
+        foreach ($this->creatableTypes() as $type) {
             $actions[] = CreateAction::make($this->creationActionName($type->model))
                 ->label(__('filament-image-labeler::image-labeler.entity.create') . ' ' . $type->typeName())
                 ->model($type->model)
