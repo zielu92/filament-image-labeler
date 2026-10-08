@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+DIR=.wayfinder/tickets
+
+field() {
+  awk -v f="$2" '
+    NR==1 && $0=="---" {fm=1; next}
+    fm && $0=="---" {exit}
+    fm && index($0, f":")==1 {sub("^"f":[ ]*",""); print; exit}
+  ' "$1"
+}
+
+set_field() {
+  awk -v field="$2" -v value="$3" '
+    NR==1 && $0=="---" {fm=1; print; next}
+    fm && $0=="---" {fm=0; print; next}
+    fm && index($0, field":")==1 {print field": "value; next}
+    {print}
+  ' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+}
+
+usage() { echo "usage: wayfinder check | claim <id> [who] | resolve <id>" >&2; exit 1; }
+
+case "${1:-}" in
+  check)
+    fail=0
+    for f in "$DIR"/wf-*.md; do
+      id=$(field "$f" id)
+      st=$(field "$f" status)
+      dups=$(awk -F: '/^---$/{c++;next} c==1 && NF>1 {print $1}' "$f" | sort | uniq -d)
+      [ -z "$dups" ] || { echo "$f: duplicate key: $dups"; fail=1; }
+      [ "$id" = "$(basename "$f" .md)" ] || { echo "$f: id '$id' != filename"; fail=1; }
+      case "$st" in open|resolved) ;; *) echo "$f: bad status '$st'"; fail=1 ;; esac
+      for d in $(field "$f" blocked-by | tr -d '[]"' | tr ',' ' '); do
+        [ -f "$DIR/$d.md" ] || { echo "$f: blocked-by '$d' has no ticket"; fail=1; }
+      done
+    done
+    if [ "$fail" -eq 0 ]; then echo "wayfinder: ok"; fi
+    exit "$fail"
+    ;;
+  claim)
+    [ $# -ge 2 ] || usage
+    f="$DIR/$2.md"; [ -f "$f" ] || { echo "no ticket $2" >&2; exit 1; }
+    set_field "$f" assignee "${3:-${USER:-unknown}}"
+    echo "claimed $2 as ${3:-${USER:-unknown}}"
+    ;;
+  resolve)
+    [ $# -ge 2 ] || usage
+    f="$DIR/$2.md"; [ -f "$f" ] || { echo "no ticket $2" >&2; exit 1; }
+    set_field "$f" status resolved
+    echo "resolved $2"
+    ;;
+  *) usage ;;
+esac
