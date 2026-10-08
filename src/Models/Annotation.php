@@ -16,6 +16,8 @@ class Annotation extends Model
         'annotation_id',
         'geometry',
         'metadata',
+        'entity_type',
+        'entity_id',
     ];
 
     /**
@@ -32,6 +34,15 @@ class Annotation extends Model
     }
 
     public function annotatable(): MorphTo
+    {
+        return $this->morphTo();
+    }
+
+    /**
+     * The linked entity: the application record this shape's annotation
+     * points at, or null when the shape carries no entity link.
+     */
+    public function entity(): MorphTo
     {
         return $this->morphTo();
     }

@@ -5,12 +5,17 @@ namespace Zielu92\FilamentImageLabeler\Forms\Components;
 use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Field;
+use Filament\Support\Components\Attributes\ExposedLivewireMethod;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use InvalidArgumentException;
+use Livewire\Attributes\Renderless;
 use Throwable;
 use Zielu92\FilamentImageLabeler\Support\AnnotationSuggestion;
 use Zielu92\FilamentImageLabeler\Support\FetchesImage;
+use Zielu92\FilamentImageLabeler\Support\LinkableType;
 
 class ImageLabel extends Field
 {
@@ -45,6 +50,12 @@ class ImageLabel extends Field
     protected string | Htmlable | Closure | null $autoAnnotateButtonLabel = null;
 
     protected string | Closure | null $autoAnnotateButtonIcon = 'heroicon-m-sparkles';
+
+    /** @var array<array-key, mixed> | Closure | null */
+    protected array | Closure | null $linkableTypes = null;
+
+    /** @var list<LinkableType>|null */
+    protected ?array $resolvedLinkableTypes = null;
 
     protected function setUp(): void
     {
@@ -146,6 +157,164 @@ class ImageLabel extends Field
         return empty($palette) ? static::DEFAULT_PALETTE : array_values($palette);
     }
 
+    /**
+     * Enable entity links: shapes on this field may be linked to records of
+     * the given types. Each entry is a configured LinkableType.
+     *
+     * @param  array<array-key, LinkableType>|Closure  $types
+     */
+    public function linkableTo(array | Closure $types): static
+    {
+        $this->linkableTypes = $types;
+        $this->resolvedLinkableTypes = null;
+
+        return $this;
+    }
+
+    public function hasLinkableTypes(): bool
+    {
+        return $this->linkableTypes !== null;
+    }
+
+    /**
+     * @return list<LinkableType>
+     */
+    public function getLinkableTypes(): array
+    {
+        if ($this->resolvedLinkableTypes !== null) {
+            return $this->resolvedLinkableTypes;
+        }
+
+        $types = $this->evaluate($this->linkableTypes) ?? [];
+
+        if ($types === []) {
+            throw new InvalidArgumentException('ImageLabel: linkableTo() needs at least one LinkableType.');
+        }
+
+        $seen = [];
+
+        foreach ($types as $type) {
+            if (! $type instanceof LinkableType) {
+                throw new InvalidArgumentException('ImageLabel: linkableTo() accepts only LinkableType instances.');
+            }
+
+            if (! class_exists($type->model) || ! is_subclass_of($type->model, Model::class)) {
+                throw new InvalidArgumentException("ImageLabel: linkable type [{$type->model}] is not an Eloquent model.");
+            }
+
+            if (isset($seen[$type->model])) {
+                throw new InvalidArgumentException("ImageLabel: duplicate linkable type [{$type->model}].");
+            }
+
+            $seen[$type->model] = true;
+
+            if ($type->hasCustomDisplay() && ! $type->hasSearchBy()) {
+                throw new InvalidArgumentException("ImageLabel: [{$type->model}] uses a custom display() but no searchBy() - tell the picker which columns to LIKE.");
+            }
+
+            if (! $type->hasCustomDisplay() && $type->searchableColumns() === []) {
+                throw new InvalidArgumentException("ImageLabel: [{$type->model}] has neither a name/title column nor searchBy() - the entity picker would find nothing.");
+            }
+        }
+
+        return $this->resolvedLinkableTypes = array_values($types);
+    }
+
+    /**
+     * Entity picker search: fan the term out over every linkable type
+     * (indexed LIKE per searchable column, AND across words). Returns
+     * grouped-by-type matches.
+     *
+     * @return list<array{type: string, id: int|string, display: string, label: string}>
+     */
+    #[ExposedLivewireMethod]
+    #[Renderless]
+    public function searchEntities(string $search): array
+    {
+        if (blank($search)) {
+            return [];
+        }
+
+        $results = [];
+
+        foreach ($this->getLinkableTypes() as $type) {
+            $results = array_merge($results, $type->search(trim($search)));
+
+            if (count($results) >= 50) {
+                break;
+            }
+        }
+
+        return array_slice($results, 0, 50);
+    }
+
+    /**
+     * Resolve display strings for entity refs referenced by current shapes -
+     * one query per type, refs outside the allow-list get a basename
+     * fallback without touching the DB (stale links still render).
+     *
+     * @param  list<array<array-key, mixed>>  $refs
+     * @return array<string, array{display: string, label: string}>
+     */
+    #[ExposedLivewireMethod]
+    #[Renderless]
+    public function resolveEntities(array $refs): array
+    {
+        $types = [];
+        $ids = [];
+
+        foreach ($this->getLinkableTypes() as $type) {
+            $types[$type->model] = $type;
+        }
+
+        foreach ($refs as $ref) {
+            $type = $ref['type'] ?? null;
+            $id = $ref['id'] ?? null;
+
+            if (! is_string($type) || $type === '' || $id === null || $id === '') {
+                continue;
+            }
+
+            $ids[$type][] = is_numeric($id) ? (int) $id : (string) $id;
+        }
+
+        $resolved = [];
+
+        foreach ($ids as $type => $typeIds) {
+            $typeIds = array_values(array_unique($typeIds));
+
+            if (! isset($types[$type])) {
+                if (! class_exists($type) || ! is_subclass_of($type, Model::class)) {
+                    continue;
+                }
+
+                $label = Str::of(class_basename($type))->headline()->title()->toString();
+
+                foreach ($typeIds as $id) {
+                    $resolved[$type . ':' . $id] = ['display' => $label . ' #' . $id, 'label' => $label];
+                }
+
+                continue;
+            }
+
+            $linkable = $types[$type];
+            $found = $linkable->model::query()->whereKey($typeIds)->get();
+            $byKey = $found->keyBy(fn (Model $record): string => $record->getKey());
+
+            foreach ($typeIds as $id) {
+                $record = $byKey->get((string) $id) ?? $byKey->get($id);
+                $resolved[$type . ':' . $id] = [
+                    'display' => $record instanceof Model
+                        ? $linkable->displayFor($record)
+                        : $linkable->typeName() . ' #' . $id,
+                    'label' => $linkable->typeName(),
+                ];
+            }
+        }
+
+        return $resolved;
+    }
+
     public function enableAutoAnnotation(bool | Closure $condition = true): static
     {
         $this->isAutoAnnotateEnabled = $condition;
@@ -221,8 +390,10 @@ class ImageLabel extends Field
 
     /**
      * The field action: run the record's hook, return pending items for the view.
+     * Entity refs outside the field's linkableTo() allow-list are dropped,
+     * their shapes kept.
      *
-     * @return list<array{id: string, label: string, rect: array<int, float>|null, polygon: list<array<int, float>>|null}>
+     * @return list<array{id: string, label: string, entity: array{type: string, id: int|string}|null, rect: array<int, float>|null, polygon: list<array<int, float>>|null}>
      */
     public function performAutoAnnotate(Model | array | null $record = null): array
     {
@@ -250,7 +421,20 @@ class ImageLabel extends Field
             return [];
         }
 
-        return AnnotationSuggestion::toPending($suggestions);
+        $pending = AnnotationSuggestion::toPending($suggestions);
+
+        $allowed = array_map(
+            fn (LinkableType $type): string => $type->model,
+            $this->hasLinkableTypes() ? $this->getLinkableTypes() : [],
+        );
+
+        foreach ($pending as &$item) {
+            if (! in_array($item['entity']['type'] ?? null, $allowed, true)) {
+                $item['entity'] = null;
+            }
+        }
+
+        return $pending;
     }
 
     /** hasCustomAutoAnnotation() exists only on the trait - method_exists doubles as the trait check (PHP has no instanceof for traits). */

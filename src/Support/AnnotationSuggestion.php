@@ -18,15 +18,25 @@ final class AnnotationSuggestion
     /** @var array{0: float, 1: float, 2: float, 3: float}|null */
     public readonly ?array $box;
 
+    public readonly ?EntityRef $entity;
+
     /**
      * @param  array<array-key, mixed>|null  $box  [x, y, w, h], normalized
      * @param  array<array-key, mixed>|null  $polygon  [[x, y], ...], normalized
+     * @param  EntityRef|array<array-key, mixed>|null  $entity  linked entity this finding corresponds to
      */
     public function __construct(
         public readonly string $label,
         ?array $box = null,
         ?array $polygon = null,
+        EntityRef | array | null $entity = null,
     ) {
+        $this->entity = match (true) {
+            $entity instanceof EntityRef => $entity,
+            is_array($entity) => EntityRef::fromArray($entity),
+            default => null,
+        };
+
         $normBox = null;
 
         if ($polygon !== null) {
@@ -44,7 +54,7 @@ final class AnnotationSuggestion
     }
 
     /**
-     * @param  array{label?: string, box?: array<array-key, mixed>|null, polygon?: array<array-key, mixed>|null}  $data
+     * @param  array{label?: string, box?: array<array-key, mixed>|null, polygon?: array<array-key, mixed>|null, entity?: EntityRef|array<array-key, mixed>|null}  $data
      */
     public static function fromArray(array $data): self
     {
@@ -52,27 +62,28 @@ final class AnnotationSuggestion
             label: (string) ($data['label'] ?? ''),
             box: $data['box'] ?? null,
             polygon: $data['polygon'] ?? null,
+            entity: $data['entity'] ?? null,
         );
     }
 
     /** A rectangle from normalized [x, y, w, h]. */
-    public static function box(string $label, float $x, float $y, float $w, float $h): self
+    public static function box(string $label, float $x, float $y, float $w, float $h, EntityRef | array | null $entity = null): self
     {
-        return new self(label: $label, box: [$x, $y, $w, $h]);
+        return new self(label: $label, box: [$x, $y, $w, $h], entity: $entity);
     }
 
     /** A closed shape from normalized [[x, y], ...] points. */
-    public static function polygon(string $label, array $points): self
+    public static function polygon(string $label, array $points, EntityRef | array | null $entity = null): self
     {
-        return new self(label: $label, polygon: $points);
+        return new self(label: $label, polygon: $points, entity: $entity);
     }
 
     /**
-     * Editor-ready pending items: id + label + clamped normalized geometry.
-     * The client scales points against the displayed image size.
+     * Editor-ready pending items: id + label + entity ref + clamped normalized
+     * geometry. The client scales points against the displayed image size.
      *
      * @param  iterable<int, self|array<array-key, mixed>>  $suggestions
-     * @return list<array{id: string, label: string, rect: array<int, float>|null, polygon: list<array<int, float>>|null}>
+     * @return list<array{id: string, label: string, entity: array{type: string, id: int|string}|null, rect: array<int, float>|null, polygon: list<array<int, float>>|null}>
      */
     public static function toPending(iterable $suggestions): array
     {
@@ -86,6 +97,7 @@ final class AnnotationSuggestion
             $pending[] = [
                 'id' => (string) Str::uuid(),
                 'label' => $suggestion->label,
+                'entity' => $suggestion->entity?->toArray(),
                 'rect' => $suggestion->box === null ? null : array_map($clamp, $suggestion->box),
                 'polygon' => $suggestion->box === null
                     ? array_map(fn (array $p): array => [$clamp($p[0]), $clamp($p[1])], $suggestion->points)
