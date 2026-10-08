@@ -23,16 +23,16 @@ Locked spec for **entity-linked annotations**: a shape optionally bound to an El
 - [Enforcement and optionality of entity binding](tickets/wf-005.md) — no required-entity mode; label seeding stands (no entity-only state — display concern only); Filament validation semantics untouched; stale allow-list links render anyway, never pruned.
 - [Schema + sync contract for linkable columns](tickets/wf-006.md) — `entity_type`/`entity_id` + index + `Annotation::entity()`; marker trait `LinkableEntity` nulls links on record delete and exposes `linkedAnnotations()`; sync items take flat entity keys, null clears / absent keeps / half-link coerces to null; chip labels resolved by package via batched renderless endpoint, not consumer state.
 - [AnnotationSuggestion carries optional entity link](tickets/wf-007.md) — `entity: EntityRef | array | null` on the suggestion (no live-model union); allow-list miss or dead record drops only the link, shape survives silently; label seeding applies at Apply like manual binds.
+- [Entity chip in Labels panel vs Details panel](tickets/wf-008.md) — panel rows stay plain label groups (mixed groups make row-level markers lie); display-string collisions accepted, no suffixing/warnings; entity identity lives only in the Details-panel chip.
 - [Per-type entity configuration API](tickets/wf-003.md) — per-type descriptor objects on `linkableTo()`: display via name/title/#id convention + closure override, `searchBy` required when display is custom, humanized type label + i18n override, per-type `creatable(schema)` reusing resource-free CreateAction (auto-binds new record), field-local definitions (no global registry v1). Facts killed embedded Select (A): exposed-method combobox (C) is the cheap inline route.
 
 ## Not yet specified
 
-- Visual styling of the entity chip/pill in the Details panel (icon, color, layout) — placement settled by wf-002, chrome graduate to a prototype ticket once the Details-panel structure is known.
-- Read-only/view-page rendering of linked entities outside the editor.
-- Translation strings + a11y for all new UI.
+None — the way is clear. Remaining open questions (chip pixel styling, translation keys, a11y details) are execution-time choices, not decisions the spec needs.
 
 ## Out of scope
 
 - Multiple entities on one shape (one link per shape for this effort; revisit only if destination is redrawn).
 - Searching/filtering images *by* linked entity as a feature (the columns enable it; building the query UI is beyond this destination).
 - Reverse relation manager on the linked model (e.g. "annotations on this Person").
+- Rendering linked entities outside the editor (view pages, infolists) — deferred to a future effort; `linkedAnnotations()` from wf-006 is the hook it will build on.
