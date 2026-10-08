@@ -17,7 +17,9 @@ Locked spec for **entity-linked annotations**: a shape optionally bound to an El
 <!-- one line per closed ticket -->
 
 - [Research: cheapest search plumbing for canvas-embedded entity picker](tickets/wf-001.md) — B recommended: searchable Select in a field Action modal (`mountAction`+`schemaComponent`, already used at blade:388), zero new JS/deps; C = ExposedLivewireMethod + Alpine combobox if modal rejected. A strictly dominated; full-text E rejected.
-- [Search UX across heterogeneous entity types](tickets/wf-002.md) — inline native searchable Select in Details panel (no new combobox lib), single box with type-grouped results, bind needs active shape, seeds empty label only, entity gets its own marker, unbind explicit. (wf-001's B-vs-C dissolved: user rejected modal, making A/C the live pair; wf-003 will price A vs C.)
+- [Search UX across heterogeneous entity types](tickets/wf-002.md) — inline searchable picker in Details panel (no new combobox lib), single box with type-grouped results, bind needs active shape, seeds empty label only, entity gets its own marker, unbind explicit.
+- [Per-type entity configuration API](tickets/wf-003.md) — descriptor objects on `linkableTo()`: display convention (name→title→#id, closure override), `searchBy()` required with custom display, type label humanized+overridable, per-type opt-in `creatable(schema)` reusing CreateAction modal; field-local defs, no global registry v1. Picker internals: exposed renderless `searchLinkables` fan-out over LIKE+limits, `Class:id` values (embedded native Select ruled out — see ticket Facts).
+- [Per-type entity configuration API](tickets/wf-003.md) — per-type descriptor objects on `linkableTo()`: display via name/title/#id convention + closure override, `searchBy` required when display is custom, humanized type label + i18n override, per-type `creatable(schema)` reusing resource-free CreateAction (auto-binds new record), field-local definitions (no global registry v1). Facts killed embedded Select (A): exposed-method combobox (C) is the cheap inline route.
 
 ## Not yet specified
 
