@@ -1,6 +1,6 @@
 # Wayfinder map: Entity-linked annotations
 
-Labelled by wayfinder. Tracker: local markdown (this folder). Tickets are files in `.wayfinder/tickets/`; `blocked-by` frontmatter holds the edges. Claim = set `assignee`. Answer goes in the ticket's `## Answer` on resolution; one line appended here under Decisions so far.
+Labelled by wayfinder. Tracker: local markdown (this folder). Tickets are files in `.wayfinder/tickets/` (`wf-*` first map, `wf2-*` second); `blocked-by` frontmatter holds the edges. Claim = set `assignee`. Answer goes in the ticket's `## Answer` on resolution; one line appended here under Decisions so far.
 
 ## Destination
 

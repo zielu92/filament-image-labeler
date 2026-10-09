@@ -25,7 +25,7 @@ usage() { echo "usage: wayfinder check | claim <id> [who] | resolve <id>" >&2; e
 case "${1:-}" in
   check)
     fail=0
-    for f in "$DIR"/wf-*.md; do
+    for f in "$DIR"/wf*-*.md; do
       id=$(field "$f" id)
       st=$(field "$f" status)
       dups=$(awk -F: '/^---$/{c++;next} c==1 && NF>1 {print $1}' "$f" | sort | uniq -d)
