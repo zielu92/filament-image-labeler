@@ -15,6 +15,7 @@ Locked spec for developer-defined actions on linked entities in the editor: a sh
 ## Decisions so far
 
 - [Research: per-record Action mount protocol](tickets/wf2-001.md) — `$arguments`/`$record` ARE injectable into registered action closures (Action.php:567-583); `mountAction` context recordKey is table-only (InteractsWithActions.php:715); no config-copy API on Action → mounting a developer-returned instance = per-property delegation hack.
+- [entityAction return contract](tickets/wf2-002.md) — template Action registered once (`openLinkedEntity`), `mountUsing` binds record from `{type,id}`; url→navigate / modal config→modal / visible()→per-record hide. resolveEntities payload carries per-ref `visible`+`url` (server-evaluated); mount re-validates allow-list + existence; href cached per mount, staleness accepted.
 
 ## Not yet specified
 
