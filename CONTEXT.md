@@ -15,3 +15,4 @@ Glossary for filament-image-labeler. Vocabulary only — how things are built li
 - **Linked entity** — the record an entity link points at: the real-world thing the shape depicts. Not the image's owner — that is the annotatable model. _Avoid_: subject, referenced model.
 - **Entity picker** — the inline search control in the editor used to choose a record to link. Always opens in place; not a modal. _Avoid_: entity modal, search box.
 - **Entity chip** — the marker in the details panel showing a shape's entity link. _Avoid_: pill, badge.
+- **Entity link action** — a developer-defined operation run from a shape's entity link: navigates to the linked entity or opens its details in the editor. It exists only while the link does, and the developer's code decides per record whether it exists at all. The verb is *run*. _Avoid_: link action, view button.

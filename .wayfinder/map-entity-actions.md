@@ -16,12 +16,11 @@ Locked spec for developer-defined actions on linked entities in the editor: a sh
 
 - [Research: per-record Action mount protocol](tickets/wf2-001.md) — `$arguments`/`$record` ARE injectable into registered action closures (Action.php:567-583); `mountAction` context recordKey is table-only (InteractsWithActions.php:715); no config-copy API on Action → mounting a developer-returned instance = per-property delegation hack.
 - [entityAction return contract](tickets/wf2-002.md) — template Action registered once (`openLinkedEntity`), `mountUsing` binds record from `{type,id}`; url→navigate / modal config→modal / visible()→per-record hide. resolveEntities payload carries per-ref `visible`+`url` (server-evaluated); mount re-validates allow-list + existence; href cached per mount, staleness accepted.
+- [Chip affordance, read-only canvas click, action naming](tickets/wf2-003.md) — whole chip clickable (role=button + Enter, unlink × nested-stop); read-only canvas single-click runs the action (pointer cursor marks actionable shapes); one template per field, internal name `openLinkedEntity`; a11y at button level only; CONTEXT.md gains **entity link action** (verb: run).
 
 ## Not yet specified
 
-- Whether modal-returning actions need nested actions (confirm/second modal) and how `creatable()` modal coexists — once the return contract lands.
-- Deep-link behavior when entity was deleted mid-session (link already nulls — action disappears? click races).
-- Accessibility of the chip-as-button (keyboard focus, Enter to activate).
+None — the way is clear. Nested confirmations inside a run action are the developer template's native Filament behavior, deleted-record staleness is covered by wf2-002's per-mount cache, and the chip's keyboard story was settled in wf2-003.
 
 ## Out of scope
 
