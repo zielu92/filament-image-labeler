@@ -45,7 +45,8 @@ php artisan migrate
             }
         },
         "label": "Microcontroller",
-        "color": "#ef4444"
+        "color": "#ef4444",
+        "entity": { "type": "App\\Models\\Part", "id": 12 }
     }
 ]
 ```
@@ -53,6 +54,7 @@ php artisan migrate
 - `target.selector` is Annotorious' internal geometry — pixel coordinates in the image's natural size; polygons use `{ "type": "POLYGON", "geometry": { "points": [[x, y], ...], "bounds": {...} } }`. Store it as-is, it round-trips.
 - `label` is free text; shapes sharing a label share a row in the Labels panel.
 - `color` is assigned deterministically from a hash of the label name and can be overridden per label in the UI. Colors are denormalized onto each shape, so the state array is all you need to persist.
+- `entity` is the [entity link](#entity-links) — a reference to one record — and only appears on fields configured with `->linkableTo()`.
 
 ## Usage
 
@@ -185,13 +187,18 @@ $model->syncAnnotations([
 
 ## Entity links
 
-Opt in by declaring which record types shapes may link to:
+A shape can point at one record from your own app — a `Person`, a `Building`, a `Place` — beside its free-text label. The link survives label renames and lives in its own `entity_type` / `entity_id` columns, never in `metadata`. Everything below is opt-in: no `linkableTo()` means no picker, no chip, no links.
+
+### 1. Enable the feature
+
+Declare which record types a field allows. Each entry is a `LinkableType`:
 
 ```php
 use Zielu92\FilamentImageLabeler\Forms\Components\ImageLabel;
 use Zielu92\FilamentImageLabeler\Support\LinkableType;
 
 ImageLabel::make('annotations')
+    ->image(/* ... */)
     ->linkableTo([
         // Display convention: name column, else title, else "#<id>".
         LinkableType::make(Building::class),
@@ -201,28 +208,72 @@ ImageLabel::make('annotations')
             ->display(fn (Person $person): string => "{$person->first_name} {$person->last_name}")
             ->searchBy(['first_name', 'last_name']),
 
-        // Optional: allow creating a record from the picker with a form schema
+        // Override the type heading shown above grouped picker results, and
+        // allow creating a record from the picker with a form schema
         // (pass your Filament resource's form here if you have one).
         LinkableType::make(Vendor::class)
+            ->typeLabel('Supplier')
             ->creatable(fn () => [TextInput::make('name')->required()]),
     ])
+    ->columnSpanFull()
 ```
 
-What you get:
+| `LinkableType` method | What it does |
+|-----------------------|--------------|
+| `->display(fn ($record): string)` | How a linked record is shown on the chip and in results. If you set a custom display you **must** also set `searchBy()`, or the picker can't find anything. |
+| `->searchBy(array $columns)` | The columns the picker runs indexed `LIKE` matches against. Defaults to `name` / `title` when present. |
+| `->typeLabel(string)` | The heading above that type's group in the results list. Defaults to the humanized model name. |
+| `->creatable(array\|Closure)` | Lets the picker offer "Create <Type>", opening a modal with your schema and binding the new record to the selected shape. |
 
-- An inline **entity picker** in the Label Details panel (not a modal): type to search every linkable type at once, results grouped by type. Binding requires a selected shape; linking seeds the shape's label with the record's display string only when the label is empty.
-- An **entity chip** on the selected shape with unlink; relinking replaces the link.
-- For `creatable()` types, a create entry in the picker opens a modal with your schema; the new record binds to the selected shape. Which types offer creation is controlled field-wide with `->allowEntityCreation()`: `true` (default) enables every type that has a schema, `false` disables all, and an array of model classes enables exactly those.
-- Links persist in `entity_type` / `entity_id` columns on `annotations` (run `php artisan migrate`), not in `metadata`.
+`linkableTo()` also takes a `Closure` returning the array, so the allow-list can depend on the record or the user.
 
-Persisting a link — the field state carries `entity: ['type' => ..., 'id' => ...]` per shape; map it onto the sync keys:
+### 2. Link shapes in the editor
+
+With the feature on, the Label Details panel grows an **entity picker** — an inline search box (not a modal):
+
+- Type to search every linkable type at once; results are grouped under their type heading. Selecting a row links it to the **currently selected shape**; there is no link without an active shape.
+- Linking seeds the shape's label with the record's display string **only when the label is empty**, and colors it like any typed label.
+- A linked shape shows an **entity chip** (type + display string) with an unlink `×` on the right; relinking a shape replaces its link.
+- `creatable()` types add a "Create <Type>" row in the picker; the new record binds automatically. Which types offer creation is controlled field-wide with `->allowEntityCreation()`: `true` (default) enables every type that has a schema, `false` disables all, and an array of model classes enables exactly those.
+
+### 3. Persist and hydrate the link
+
+The field state carries `entity: ['type' => ..., 'id' => ...]` per shape. Map it onto the `syncAnnotations` keys on save:
 
 ```php
-'entity_type' => $s['entity']['type'] ?? null,
-'entity_id' => $s['entity']['id'] ?? null,
+/** @param array<array{id: string, target: array, label: string, color: string, entity?: array{type: string, id: int|string}|null}> $shapes */
+function annotationRows(array $shapes): array
+{
+    return collect($shapes)->map(fn ($s) => [
+        'annotation_id' => $s['id'],
+        'geometry' => $s['target'],
+        'metadata' => ['label' => $s['label'] ?? '', 'color' => $s['color'] ?? null],
+        'entity_type' => $s['entity']['type'] ?? null,
+        'entity_id' => $s['entity']['id'] ?? null,
+    ])->all();
+}
 ```
 
-Recommended: add the `LinkableEntity` trait to each linkable model so deleting a record nulls the links pointing at it:
+And put it back into the shape on edit so the chip reappears:
+
+```php
+$data['annotations'] = $this->record->annotations()->orderBy('id')->get()
+    ->map(fn ($ann) => [
+        'id' => $ann->annotation_id,
+        'target' => $ann->geometry,
+        'label' => $ann->metadata['label'] ?? '',
+        'color' => $ann->metadata['color'] ?? AnnotationColor::forLabel($ann->metadata['label'] ?? ''),
+        'entity' => $ann->entity_type ? ['type' => $ann->entity_type, 'id' => $ann->entity_id] : null,
+    ])
+    ->values()
+    ->all();
+```
+
+`syncAnnotations()` treats the pair like any other key: `null` clears a link, omitting the keys leaves the stored link untouched, and a half pair (one set, one null) coerces to a full clear.
+
+### 4. Clean up dangling links
+
+Add the `LinkableEntity` trait to every linkable model. Deleting a record then nulls all links pointing at it (the shape and its label survive):
 
 ```php
 use Zielu92\FilamentImageLabeler\Concerns\LinkableEntity;
@@ -233,30 +284,49 @@ class Person extends Model
 }
 ```
 
-Without the trait links dangle — the editor still renders them (with a class-name fallback) but nothing cleans them up. Stale links to types removed from `linkableTo()` keep rendering; only the picker stops offering them.
+Without the trait links dangle — the editor still renders them (with a class-name fallback) but nothing cleans them up. Stale links to types removed from `linkableTo()` keep rendering too; only the picker stops offering them.
 
-### Entity link actions
+### 5. Run an action from the link (entity link action)
 
-Give linked entities a click action — open a show page or run an in-editor modal — with one template `Filament\Actions\Action` whose closures receive the linked record:
+Give linked entities a click action — open a record's show page, or run a modal right inside the editor — with **one** template `Filament\Actions\Action` whose closures receive the linked record:
 
 ```php
 use Filament\Actions\Action;
 
 ImageLabel::make('annotations')
-    ->linkableTo([...])
+    ->image(/* ... */)
+    ->linkableTo([LinkableType::make(Place::class)])
     ->entityAction(
         Action::make('viewPlace')
             ->url(fn (Place $record): ?string => route('places.show', $record))
     )
 ```
 
-What you get:
+How it behaves:
 
-- **The chip is the action.** When the action `isVisible()` for the record, the whole entity chip becomes clickable (mouse and keyboard); the unlink `×` keeps its own slot. `visible(fn ($record) => ...)` returning `false` hides the affordance per record — a plain chip, nothing to run.
-- **URL or modal.** A non-null `url()` for the record navigates in the same tab; without a URL the Action's own modal config (`->schema()`, `->modalHeading()`, …) opens in the editor. `Action::make()` needs a name for identification; the editor registers it internally as `openLinkedEntity` (one action per field — per-type differences live in the record-aware closures).
-- **Read-only fields too.** On a `readOnly()` field single-clicking a linked, actionable shape runs its action (the pointer-on-hover hint marks it).
-- **Guards.** Clicks are re-validated server-side: the type must be in `linkableTo()` and the record must exist; violations throw and stale links simply render without the affordance. The URL is cached per session mount, so a mid-session rename shows the old href until reload (the modal path is always fresh).
-- Auto-annotation suggestions that arrive with a link pick up the same affordance once their display strings resolve.
+- **The chip is the action.** In edit mode, when the action is visible for the record the whole entity chip becomes clickable (mouse + `Enter`/`Space`); the unlink `×` keeps its own slot and stops propagation. Return `false` from `->visible(fn ($record) => ...)` for a record and the chip is plain — no affordance to run.
+- **URL or modal.** A non-null `->url()` for the record navigates in the same tab; without a URL the Action's own modal config (`->schema()`, `->modalHeading()`, `->modalContent()`, …) opens over the editor. A single template covers every type — branch on the record inside the closures. `Action::make()` needs a name for identification; the editor registers it internally as `openLinkedEntity` (one action per field).
+- **Auto-created and auto-annotated links** pick up the same affordance as soon as their display strings resolve.
+
+**Read-only mode.** On a `readOnly()` field there is no Details panel or chip, so the affordance moves to the canvas: a single click on a linked, actionable shape runs its action (navigate, or open the modal); other shapes keep the hover-tooltip-only behavior. Link the field up exactly as in edit mode — the click handler activates on shapes whose link resolves to a visible action:
+
+```php
+ImageLabel::make('annotations')
+    ->image(fn ($record) => $record->getFirstMedia()?->getUrl())
+    ->readOnly()
+    ->dehydrated(false)
+    ->linkableTo([LinkableType::make(Place::class)])
+    ->entityAction(
+        Action::make('viewPlace')
+            ->url(fn (Place $place): ?string => route('places.show', $place))
+            // Or an in-editor modal instead of a URL:
+            // ->schema(fn (Place $place) => [ /* read-only display components */ ])
+            // ->modalHeading(fn (Place $place) => $place->name)
+    )
+    ->columnSpanFull()
+```
+
+**Guards.** Clicks are re-validated server-side every mount: the type must be in `linkableTo()` and the record must still exist — a violation throws, and stale links simply render with no affordance. The resolved `url()` is cached per session mount, so a mid-session rename shows the old href until reload; the modal path is always fresh (the record is re-resolved on open).
 
 ## Automatic annotation
 
@@ -386,13 +456,9 @@ ImageLabel::make('annotations')
     ->columnSpanFull()
 ```
 
-Shapes are drawn in their label colors; hovering a shape shows a tooltip with its label and color. No drawing, selection, or panels.
+Shapes are drawn in their label colors; hovering a shape shows a tooltip with its label and color. No drawing, selection, or panels — except that an [entity link action](#5-run-an-action-from-the-link-entity-link-action) turns a single click on a linked shape into a navigate-or-modal.
 
 In edit mode the canvas, toolbar and the Labels / Label Details panels appear only while an image is set — the field owns label state internally, no repeater wiring needed.
-
-## Upgrading from v0.1
-
-The app-side `Repeater` pattern is gone: the field now manages labels/colors itself and its state entries carry `label` and `color`. Old saved data still works — `target` geometry is unchanged; rows without a label in `metadata` simply hydrate as *Unlabeled*.
 
 ## Testing
 
@@ -404,7 +470,7 @@ public function test_sync_creates_annotations(): void
     $photo->syncAnnotations([
         [
             'annotation_id' => 'ann-1',
-            'geometry' => ['selector' => ['type' => 'FragmentSelector', 'value' => 'xywh=pixel:10,20,100,50']],
+            'geometry' => ['selector' => ['type' => 'RECTANGLE', 'geometry' => ['x' => 10, 'y' => 20, 'w' => 100, 'h' => 50, 'bounds' => ['minX' => 10, 'minY' => 20, 'maxX' => 110, 'maxY' => 70]]]],
             'metadata' => ['label' => 'Person'],
         ],
     ]);
