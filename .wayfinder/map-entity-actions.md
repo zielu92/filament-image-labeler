@@ -11,6 +11,7 @@ Locked spec for developer-defined actions on linked entities in the editor: a sh
 - Settled at charting (grilling 2026-10-08, all recommendations): trigger = chip + read-only canvas (never edit-mode single click); return contract = union (`Action | string | null`); links open same tab; per-record null hides the affordance.
 - Vocabulary per CONTEXT.md: entity link, linked entity, entity chip. A new term for the click affordance may graduate from wf2-003.
 - Build on wf-006 machinery: `resolveEntities` batch payload is the natural carrier for per-ref action data.
+- Annotorious event model (verified in `@annotorious/core` dist during wf2 build): the annotator emits NO raw click, and `selectionChanged` does not fire under `userSelectAction: 'NONE'` (read-only). The read-only canvas runs the action by setting `userSelectAction` per shape to `'SELECT'` when its link is actionable and `'NONE'` otherwise, then handling `selectionChanged` and clearing selection so a re-click on the same shape re-fires. Edit mode keeps `'NONE'` for canvas clicks — the affordance there is the chip, not the shape.
 
 ## Decisions so far
 
