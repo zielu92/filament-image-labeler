@@ -2,6 +2,12 @@
 
 All notable changes to `filament-image-labeler` will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Entity link actions** — `ImageLabel::entityAction()` takes one template Filament `Action` whose closures receive the linked record. When the action is visible for a record, the entity chip becomes clickable (mouse + keyboard) and, on a read-only field, clicking the shape runs it: a non-null `url()` navigates in the same tab, otherwise the Action's modal opens in the editor. Per-record `visible()` hides the affordance. Mount re-validates the type against `linkableTo()` and record existence; stale links render as plain chips.
+
 ## v0.3.2 - 2026-10-01
 
 ### Build

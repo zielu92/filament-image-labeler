@@ -8,6 +8,7 @@ use Filament\Actions\CreateAction;
 use Filament\Forms\Components\Field;
 use Filament\Support\Components\Attributes\ExposedLivewireMethod;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -20,6 +21,8 @@ use Zielu92\FilamentImageLabeler\Support\LinkableType;
 
 class ImageLabel extends Field
 {
+    public const LINKED_ENTITY_ACTION = 'openLinkedEntity';
+
     public const DEFAULT_PALETTE = [
         '#ef4444', '#3b82f6', '#10b981', '#f59e0b',
         '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
@@ -61,6 +64,10 @@ class ImageLabel extends Field
     /** @var array<array-key, class-string>|bool | Closure */
     protected array | bool | Closure $entityCreation = true;
 
+    protected Action | Closure | null $entityAction = null;
+
+    protected ?Action $entityActionInstance = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -70,6 +77,7 @@ class ImageLabel extends Field
             Action::make('autoAnnotate')
                 ->action(fn (Model | array | null $record): array => $this->performAutoAnnotate($record)),
             fn (): array => $this->creatableActions(),
+            fn (): array => $this->linkedEntityAction() !== null ? [$this->linkedEntityAction()] : [],
         ]);
     }
 
@@ -228,9 +236,10 @@ class ImageLabel extends Field
     /**
      * Entity picker search: fan the term out over every linkable type
      * (indexed LIKE per searchable column, AND across words). Returns
-     * grouped-by-type matches.
+     * grouped-by-type matches, each carrying the entity link action
+     * affordance when one is configured.
      *
-     * @return list<array{type: string, id: int|string, display: string, label: string}>
+     * @return list<array{type: string, id: int|string, display: string, label: string, visible?: bool, url?: string|null}>
      */
     #[ExposedLivewireMethod]
     #[Renderless]
@@ -240,10 +249,15 @@ class ImageLabel extends Field
             return [];
         }
 
+        $action = $this->linkedEntityAction();
+        $affordance = $action === null
+            ? null
+            : fn (Model $record): array => $this->linkedEntityAffordance($action, $record);
+
         $results = [];
 
         foreach ($this->getLinkableTypes() as $type) {
-            $results = array_merge($results, $type->search(trim($search)));
+            $results = array_merge($results, $type->search(trim($search), 8, $affordance));
 
             if (count($results) >= 50) {
                 break;
@@ -257,9 +271,12 @@ class ImageLabel extends Field
      * Resolve display strings for entity refs referenced by current shapes -
      * one query per type, refs outside the allow-list get a basename
      * fallback without touching the DB (stale links still render).
+     * With an entityAction() configured, allowed+existing records also
+     * carry the per-ref affordance: `visible` (bool) and `url` (?string),
+     * server-evaluated from the template's closures.
      *
      * @param  list<array<array-key, mixed>>  $refs
-     * @return array<string, array{display: string, label: string}>
+     * @return array<string, array{display: string, label: string, visible?: bool, url?: string|null}>
      */
     #[ExposedLivewireMethod]
     #[Renderless]
@@ -287,6 +304,7 @@ class ImageLabel extends Field
             $ids[$type][] = is_numeric($id) ? (int) $id : (string) $id;
         }
 
+        $action = $this->linkedEntityAction();
         $resolved = [];
 
         foreach ($ids as $type => $typeIds) {
@@ -311,17 +329,134 @@ class ImageLabel extends Field
             $byKey = $found->keyBy(fn (Model $record): string => $record->getKey());
 
             foreach ($typeIds as $id) {
-                $record = $byKey->get((string) $id) ?? $byKey->get($id);
-                $resolved[$type . ':' . $id] = [
+                $record = $this->findLinked($byKey, $id);
+                $entry = [
                     'display' => $record instanceof Model
                         ? $linkable->displayFor($record)
                         : $linkable->typeName() . ' #' . $id,
                     'label' => $linkable->typeName(),
                 ];
+
+                if ($action !== null) {
+                    [$entry['visible'], $entry['url']] = $this->linkedEntityAffordance($action, $record);
+                }
+
+                $resolved[$type . ':' . $id] = $entry;
             }
         }
 
         return $resolved;
+    }
+
+    /**
+     * @param  EloquentCollection<array-key, Model>  $byKey
+     */
+    protected function findLinked(EloquentCollection $byKey, int | string $id): ?Model
+    {
+        return $byKey->get((string) $id) ?? $byKey->get($id);
+    }
+
+    /**
+     * Evaluate the template's visibility and url for one record; no
+     * affordance at all when the link is stale or off the allow-list.
+     *
+     * @return array{0: bool, 1: string|null}
+     */
+    protected function linkedEntityAffordance(Action $action, ?Model $record): array
+    {
+        if (! $record instanceof Model) {
+            return [false, null];
+        }
+
+        $action->record($record);
+
+        try {
+            return [$action->isVisible(), $action->getUrl()];
+        } finally {
+            $action->record(null);
+        }
+    }
+
+    /**
+     * The entity link action: one template Action whose record-aware
+     * closures run per linked entity. Registered once under
+     * LINKED_ENTITY_ACTION; mounts with the clicked record injected from
+     * the click's {type,id} args. A non-null url() for a record navigates
+     * same tab; modal config opens the in-editor modal; visible() false
+     * hides the affordance for that record.
+     */
+    public function entityAction(Action | Closure | null $action): static
+    {
+        $this->entityAction = $action;
+        $this->entityActionInstance = null;
+
+        return $this;
+    }
+
+    /**
+     * The prepared wrapper: template re-named to the internal key, record
+     * injected (and re-validated) at mount. Stable instance so per-record
+     * closure evaluation in resolveEntities shares one visibility cache.
+     */
+    public function linkedEntityAction(): ?Action
+    {
+        if ($this->entityActionInstance !== null) {
+            return $this->entityActionInstance;
+        }
+
+        if ($this->entityAction === null) {
+            return null;
+        }
+
+        $template = $this->evaluate($this->entityAction);
+
+        if (! $template instanceof Action) {
+            throw new InvalidArgumentException('ImageLabel: entityAction() accepts a Filament Action.');
+        }
+
+        $inner = $template->getMountUsing();
+
+        $this->entityActionInstance = $template
+            ->name(static::LINKED_ENTITY_ACTION)
+            ->mountUsing(function (Action $action, array $arguments) use ($inner): void {
+                $action->record($this->resolveLinkedEntityRecord($arguments));
+
+                $action->evaluate($inner, ['action' => $action, 'arguments' => $arguments]);
+            });
+
+        return $this->entityActionInstance;
+    }
+
+    /**
+     * Trust boundary: the clicked {type,id} must be in the field's
+     * linkableTo() allow-list and the record must exist.
+     */
+    protected function resolveLinkedEntityRecord(array $arguments): Model
+    {
+        $type = $arguments['type'] ?? null;
+        $id = $arguments['id'] ?? null;
+
+        $allowed = array_filter(
+            $this->hasLinkableTypes() ? $this->getLinkableTypes() : [],
+            fn (LinkableType $linkable): bool => $linkable->model === $type,
+        );
+
+        $linkable = reset($allowed);
+
+        if (! $linkable instanceof LinkableType || $id === null || $id === '') {
+            throw new InvalidArgumentException('ImageLabel: entity link action called for a type outside linkableTo().');
+        }
+
+        /** @var class-string<Model> $model */
+        $model = $linkable->model;
+
+        $record = $model::query()->find(is_numeric($id) ? (int) $id : $id);
+
+        if (! $record instanceof Model) {
+            throw new InvalidArgumentException("ImageLabel: entity link action record [{$model}:#{$id}] does not exist.");
+        }
+
+        return $record;
     }
 
     /**
@@ -385,8 +520,8 @@ class ImageLabel extends Field
 
     /**
      * Picker payload for the editor: which linkable types exist, how they
-     * are named and which can be created from the editor (and under which
-     * registered action name).
+     * are named, which can be created from the editor (and under which
+     * registered action name), and how to run the entity link action.
      *
      * @return list<array{type: string, label: string, creatable: bool, action: string}>
      */
@@ -410,6 +545,29 @@ class ImageLabel extends Field
             ],
             $this->getLinkableTypes(),
         );
+    }
+
+    /**
+     * Entity link action config for the editor: registered action name,
+     * the template label as chip aria-label when string-resolvable, and
+     * the translation fallback.
+     *
+     * @return array{name: string, label: string}|null
+     */
+    public function getEntityActionPayload(): ?array
+    {
+        $action = $this->linkedEntityAction();
+
+        if ($action === null) {
+            return null;
+        }
+
+        $label = $action->getLabel();
+
+        return [
+            'name' => static::LINKED_ENTITY_ACTION,
+            'label' => is_string($label) ? $label : __('filament-image-labeler::image-labeler.entity.view'),
+        ];
     }
 
     public function creationActionName(string $model): string

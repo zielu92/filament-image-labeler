@@ -149,9 +149,10 @@ final class LinkableType
      * match at least one searchable column (OR across columns, AND across
      * words), mirroring Filament's own picker baseline.
      *
-     * @return list<array{type: string, id: int|string, display: string, label: string}>
+     * @param  (callable(Model): array{0: bool, 1: string|null})|null  $affordance
+     * @return list<array{type: string, id: int|string, display: string, label: string, visible?: bool, url?: string|null}>
      */
-    public function search(string $term, int $limit = 8): array
+    public function search(string $term, int $limit = 8, ?callable $affordance = null): array
     {
         $columns = $this->searchableColumns();
 
@@ -183,12 +184,20 @@ final class LinkableType
         return $query
             ->limit($limit)
             ->get()
-            ->map(fn (Model $record): array => [
-                'type' => $this->model,
-                'id' => $record->getKey(),
-                'display' => $this->displayFor($record),
-                'label' => $this->typeName(),
-            ])
+            ->map(function (Model $record) use ($affordance): array {
+                $row = [
+                    'type' => $this->model,
+                    'id' => $record->getKey(),
+                    'display' => $this->displayFor($record),
+                    'label' => $this->typeName(),
+                ];
+
+                if ($affordance !== null) {
+                    [$row['visible'], $row['url']] = $affordance($record);
+                }
+
+                return $row;
+            })
             ->all();
     }
 

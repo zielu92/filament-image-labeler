@@ -30,6 +30,7 @@ return [
         'search_placeholder' => 'Szukaj encji…',
         'create' => 'Utwórz',
         'unlink' => 'Odłącz encję',
+        'view' => 'Pokaż powiązaną encję',
         'no_results' => 'Brak wyników.',
     ],
     'auto' => [

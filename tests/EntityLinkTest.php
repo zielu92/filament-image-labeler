@@ -2,6 +2,7 @@
 
 namespace Zielu92\FilamentImageLabeler\Tests;
 
+use Filament\Actions\Action as FilamentActionsAction;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -408,6 +409,109 @@ class EntityLinkTest extends TestCase
 
         $this->expectException(\InvalidArgumentException::class);
         $field->getEntityTypesPayload();
+    }
+
+    // --- Entity link action (wf2) ---
+
+    public function test_entity_action_wraps_template_under_internal_name(): void
+    {
+        $field = $this->actionField();
+
+        $this->assertNull($field->getEntityActionPayload());
+
+        $field->entityAction(FilamentActionsAction::make('viewThing')->url(fn (Model $r) => '/people/' . $r->getKey()));
+
+        $this->assertSame('openLinkedEntity', $field->linkedEntityAction()->getName());
+        $this->assertSame('openLinkedEntity', $field->getAction('openLinkedEntity')->getName());
+        $this->assertSame([
+            'name' => 'openLinkedEntity',
+            'label' => 'Open linked entity',
+        ], $field->getEntityActionPayload());
+    }
+
+    public function test_entity_action_label_uses_string_template_label(): void
+    {
+        $field = $this->actionField()
+            ->entityAction(FilamentActionsAction::make('viewThing')->label('Show person'));
+
+        $this->assertSame('Show person', $field->getEntityActionPayload()['label']);
+    }
+
+    public function test_resolve_entities_carries_visible_and_url_per_ref(): void
+    {
+        $person = EntityPerson::create(['first_name' => 'Jan', 'last_name' => 'Kowalski']);
+
+        $field = $this->actionField()->entityAction(
+            FilamentActionsAction::make('viewThing')
+                ->url(fn (Model $r): string => $r->first_name === 'Jan' ? '/jan' : null)
+                ->visible(fn (Model $r): bool => $r->last_name !== 'Nowak')
+        );
+
+        $resolved = $field->resolveEntities([
+            ['type' => EntityPerson::class, 'id' => $person->id],
+            ['type' => EntityPerson::class, 'id' => 9999],
+        ]);
+
+        $this->assertTrue($resolved[EntityPerson::class . ':' . $person->id]['visible']);
+        $this->assertSame('/jan', $resolved[EntityPerson::class . ':' . $person->id]['url']);
+        $this->assertFalse($resolved[EntityPerson::class . ':9999']['visible']);
+        $this->assertNull($resolved[EntityPerson::class . ':9999']['url']);
+    }
+
+    public function test_search_entities_rows_carry_affordance(): void
+    {
+        EntityPerson::create(['first_name' => 'Jan', 'last_name' => 'Kowalski']);
+
+        $field = $this->actionField()->entityAction(
+            FilamentActionsAction::make('viewThing')->url('/people')
+        );
+
+        $rows = $field->searchEntities('Jan');
+
+        $this->assertTrue($rows[0]['visible']);
+        $this->assertSame('/people', $rows[0]['url']);
+    }
+
+    public function test_mount_guard_rejects_foreign_type_and_missing_record(): void
+    {
+        $person = EntityPerson::create(['first_name' => 'Jan', 'last_name' => 'Kowalski']);
+        $field = $this->actionField()->entityAction(FilamentActionsAction::make('viewThing'));
+        $action = $field->linkedEntityAction();
+
+        try {
+            $this->mountWith($action, ['type' => EntityBuilding::class, 'id' => 1]);
+            $this->fail('expected guard for foreign type');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('linkableTo', $e->getMessage());
+        }
+
+        try {
+            $this->mountWith($action, ['type' => EntityPerson::class, 'id' => 9999]);
+            $this->fail('expected guard for missing record');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('does not exist', $e->getMessage());
+        }
+
+        $this->mountWith($action, ['type' => EntityPerson::class, 'id' => $person->id]);
+        $this->assertSame($person->id, $action->getRecord()->id);
+    }
+
+    protected function actionField(): ImageLabel
+    {
+        return ImageLabel::make('shapes')->linkableTo([
+            LinkableType::make(EntityPerson::class)
+                ->display(fn (Model $m): string => $m->first_name . ' ' . $m->last_name)
+                ->searchBy(['first_name', 'last_name']),
+        ]);
+    }
+
+    protected function mountWith(FilamentActionsAction $action, array $arguments): void
+    {
+        // Mirrors InteractsWithActions: arguments are merged onto the
+        // resolved action, then mount() runs mountUsing with the schema.
+        $action->arguments($arguments);
+
+        $action->mount([]);
     }
 
     // --- Suggestions payload (wf-007) ---

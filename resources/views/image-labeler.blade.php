@@ -39,6 +39,7 @@
             picker: { open: false, term: '', results: [], busy: false, index: 0 },
             linkTypes: @js($field->getEntityTypesPayload()),
             createWord: @js(__('filament-image-labeler::image-labeler.entity.create')),
+            entityAction: @js($field->getEntityActionPayload()),
 
             hashColor(value) {
                 let hash = 0;
@@ -148,10 +149,20 @@
                 return out;
             },
 
-            bindEntity(ref, display, typeLabel) {
+            bindEntity(ref, display, typeLabel, actionData = null) {
                 const shape = this.activeShape;
                 if (! shape) return;
-                this.entityCache = { ...this.entityCache, [this.entityKey(ref)]: { display: display, label: typeLabel } };
+                const key = this.entityKey(ref);
+                this.entityCache = {
+                    ...this.entityCache,
+                    [key]: {
+                        ...(this.entityCache[key] || {}),
+                        display: display,
+                        label: typeLabel,
+                        visible: actionData ? !!actionData.visible : false,
+                        url: actionData ? (actionData.url ?? null) : null,
+                    },
+                };
                 this.state = (this.state || []).map(s => {
                     if (s.id !== shape.id) return s;
                     const seeded = (s.label ?? '') === '';
@@ -169,7 +180,7 @@
             },
 
             linkEntity(row) {
-                this.bindEntity({ type: row.type, id: row.id }, row.display, row.label);
+                this.bindEntity({ type: row.type, id: row.id }, row.display, row.label, row);
             },
 
             async createEntity(t) {
@@ -186,24 +197,47 @@
                 if (! result || result.id === null || result.id === undefined) return;
 
                 const ref = { type: t.type, id: result.id };
-                let display = '';
-                let typeLabel = t.label;
+                let entry = null;
                 try {
                     const resolved = await this.callSchema('resolveEntities', { refs: [ref] });
-                    const entry = (resolved || {})[this.entityKey(ref)];
-                    if (entry) {
-                        display = entry.display;
-                        typeLabel = entry.label;
-                    }
+                    entry = (resolved || {})[this.entityKey(ref)];
                 } catch (e) {}
+                if (entry) {
+                    this.entityCache = { ...this.entityCache, [this.entityKey(ref)]: entry };
+                }
 
-                this.bindEntity(ref, display || this.entityFallback(ref), typeLabel);
+                this.bindEntity(ref, (entry && entry.display) || this.entityFallback(ref), (entry && entry.label) || t.label);
             },
 
             unlinkEntity() {
                 const shape = this.activeShape;
                 if (! shape) return;
                 this.state = (this.state || []).map(s => s.id === shape.id ? { ...s, entity: null } : s);
+            },
+
+            entityActionFor(ref) {
+                if (! ref || ! this.entityAction) return null;
+                const c = this.entityCache[this.entityKey(ref)];
+                if (! c || ! c.visible) return null;
+
+                return { url: c.url || null, name: this.entityAction.name, label: this.entityAction.label };
+            },
+
+            shapeEntity(id) {
+                const s = (this.state || []).find(x => x.id === id);
+
+                return s && s.entity && s.entity.type ? s.entity : null;
+            },
+
+            runEntityAction(ref) {
+                const action = this.entityActionFor(ref);
+                if (! action) return;
+                if (action.url) {
+                    window.location.href = action.url;
+
+                    return;
+                }
+                this.$wire.call('mountAction', action.name, { type: ref.type, id: ref.id }, { schemaComponent: '{{ $field->getKey() }}' });
             },
 
             async ensureEntities() {
@@ -264,7 +298,7 @@
                 this.anno = window.Annotorious.init({
                     image: this.$refs.imageToLabel,
                     style: this.styleExpr(),
-                    ...(this.readOnly ? { userSelectAction: 'NONE' } : {}),
+                    ...(this.readOnly ? { userSelectAction: (a) => (this.entityAction && this.entityActionFor(this.shapeEntity(a.id)) ? 'SELECT' : 'NONE') } : {}),
                 });
 
                 (this.state || []).forEach(ann => this.anno.addAnnotation(ann));
@@ -282,6 +316,16 @@
 
                     this.anno.on('mouseLeaveAnnotation', () => {
                         this.tooltip.visible = false;
+                    });
+
+                    // Entity link action: userSelectAction SELECTs only actionable
+                    // shapes, so this fires exactly on their click - run it, then
+                    // clear so a re-click on the same shape fires again.
+                    this.anno.on('selectionChanged', (selection) => {
+                        if (! selection || ! selection.length) return;
+                        const ref = this.shapeEntity(selection[0].id);
+                        this.anno.state.selection.clear();
+                        if (ref) this.runEntityAction(ref);
                     });
 
                     return;
@@ -946,13 +990,25 @@
                                     {{ __('filament-image-labeler::image-labeler.entity.title') }}
                                 </label>
 
-                                <div x-show="activeEntity" class="filament-il-entity" x-cloak>
+                                <div
+                                    x-show="activeEntity"
+                                    class="filament-il-entity"
+                                    :class="entityActionFor(activeEntity) ? 'filament-il-entity-actionable' : ''"
+                                    :role="entityActionFor(activeEntity) ? 'button' : null"
+                                    :tabindex="entityActionFor(activeEntity) ? 0 : null"
+                                    :aria-label="entityActionFor(activeEntity) ? entityActionFor(activeEntity).label : null"
+                                    x-on:click="runEntityAction(activeEntity)"
+                                    x-on:keydown.enter.prevent="runEntityAction(activeEntity)"
+                                    x-on:keydown.space.prevent="runEntityAction(activeEntity)"
+                                    x-cloak
+                                >
                                     <span class="filament-il-entity-type" x-text="entityTypeLabel(activeEntity)"></span>
                                     <span class="filament-il-entity-display" x-text="entityDisplay(activeEntity)"></span>
                                     <button
                                         type="button"
                                         x-show="linksEnabled"
                                         x-on:click.stop="unlinkEntity()"
+                                        x-on:keydown.stop
                                         class="filament-il-entity-unlink"
                                         title="{{ __('filament-image-labeler::image-labeler.entity.unlink') }}"
                                         aria-label="{{ __('filament-image-labeler::image-labeler.entity.unlink') }}"

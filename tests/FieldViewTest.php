@@ -23,6 +23,8 @@ class FieldViewTest extends TestCase
         $this->assertStringContainsString('searchEntities', $compiled);
         $this->assertStringContainsString('ensureEntities', $compiled);
         $this->assertStringContainsString('activeEntity', $compiled);
+        $this->assertStringContainsString('runEntityAction', $compiled);
+        $this->assertStringContainsString('entityAction', $compiled);
     }
 
     public function test_entity_language_files_have_matching_keys(): void
@@ -37,7 +39,7 @@ class FieldViewTest extends TestCase
         foreach (['en', 'de', 'pl'] as $locale) {
             $strings = require __DIR__ . "/../resources/lang/{$locale}/image-labeler.php";
             $this->assertArrayHasKey('entity', $strings);
-            foreach (['title', 'search_placeholder', 'create', 'unlink', 'no_results'] as $key) {
+            foreach (['title', 'search_placeholder', 'create', 'unlink', 'view', 'no_results'] as $key) {
                 $this->assertNotEmpty($strings['entity'][$key], "{$locale}.entity.{$key}");
             }
         }

@@ -30,6 +30,7 @@ return [
         'search_placeholder' => 'Entitäten suchen…',
         'create' => 'Anlegen',
         'unlink' => 'Verknüpfung lösen',
+        'view' => 'Verknüpfte Entität ansehen',
         'no_results' => 'Keine Treffer.',
     ],
     'auto' => [

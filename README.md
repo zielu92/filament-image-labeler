@@ -19,7 +19,7 @@ A Filament plugin for labeling images — draw rectangles and polygons, name the
 - Two-way selection: click a shape to load its label, click a row to select the shape
 - Polymorphic `annotations` table — attach annotations to any model
 - `HasAnnotations` trait with `syncAnnotations()` for easy CRUD
-- **Optional entity links** — link a shape to a record in your own app (a `Person`, a `Building`, anything): an inline entity picker in the Label Details panel searches across the types you configure, the linked entity shows as a chip, and the first link seeds an empty label with the record's display string
+- **Optional entity links** — link a shape to a record in your own app (a `Person`, a `Building`, anything): an inline entity picker in the Label Details panel searches across the types you configure, the linked entity shows as a chip (optionally clickable — a template Action opens its URL or modal), and the first link seeds an empty label with the record's display string
 - **Optional automatic annotation** — a model overrides `autoAnnotate()` to turn an image into suggestions (any backend you like: local model, detection API, LLM); the editor gets an **Annotate** button, optionally auto-running when the image loads
 - Works with private/public file storage, Filament v5 compatible, translations (en/de/pl)
 
@@ -235,6 +235,29 @@ class Person extends Model
 
 Without the trait links dangle — the editor still renders them (with a class-name fallback) but nothing cleans them up. Stale links to types removed from `linkableTo()` keep rendering; only the picker stops offering them.
 
+### Entity link actions
+
+Give linked entities a click action — open a show page or run an in-editor modal — with one template `Filament\Actions\Action` whose closures receive the linked record:
+
+```php
+use Filament\Actions\Action;
+
+ImageLabel::make('annotations')
+    ->linkableTo([...])
+    ->entityAction(
+        Action::make('viewPlace')
+            ->url(fn (Place $record): ?string => route('places.show', $record))
+    )
+```
+
+What you get:
+
+- **The chip is the action.** When the action `isVisible()` for the record, the whole entity chip becomes clickable (mouse and keyboard); the unlink `×` keeps its own slot. `visible(fn ($record) => ...)` returning `false` hides the affordance per record — a plain chip, nothing to run.
+- **URL or modal.** A non-null `url()` for the record navigates in the same tab; without a URL the Action's own modal config (`->schema()`, `->modalHeading()`, …) opens in the editor. `Action::make()` needs a name for identification; the editor registers it internally as `openLinkedEntity` (one action per field — per-type differences live in the record-aware closures).
+- **Read-only fields too.** On a `readOnly()` field single-clicking a linked, actionable shape runs its action (the pointer-on-hover hint marks it).
+- **Guards.** Clicks are re-validated server-side: the type must be in `linkableTo()` and the record must exist; violations throw and stale links simply render without the affordance. The URL is cached per session mount, so a mid-session rename shows the old href until reload (the modal path is always fresh).
+- Auto-annotation suggestions that arrive with a link pick up the same affordance once their display strings resolve.
+
 ## Automatic annotation
 
 Let a model label its own images. The package defines only *that* it happens and *what shape the answer has* — how you find things in the image is entirely yours (local model, hosted detector, vision LLM, hardcoded test data).
@@ -342,6 +365,9 @@ Notes:
 | `->multiple(bool\|Closure)` | Allow multiple shapes (new shape replaces old when `false`) | `true` |
 | `->coloredAnnotations(array\|null $palette)` | Palette used for default label colors | `ImageLabel::DEFAULT_PALETTE` |
 | `->readOnly(bool\|Closure $condition)` | Display mode: shapes render, hovering shows the label; no toolbar or panels | `false` |
+| `->linkableTo(array\|Closure $types)` | Enable entity links for these `LinkableType`s | off |
+| `->allowEntityCreation(array\|bool\|Closure)` | Which linkable types offer in-picker record creation (needs `creatable()`) | `true` |
+| `->entityAction(Action\|Closure\|null)` | Entity link action run from the chip / read-only canvas click | off |
 | `->enableAutoAnnotation(bool\|Closure)` | Show the Annotate button (needs an `autoAnnotate()` override on the model) | `false` |
 | `->autoAnnotateOnLoad(bool\|Closure)` | Also run automatic annotation when the image (re)loads | `false` |
 | `->autoAnnotateButton(bool\|Closure)` | Show the toolbar button at all (turn off for hands-off, load-only annotation) | `true` |

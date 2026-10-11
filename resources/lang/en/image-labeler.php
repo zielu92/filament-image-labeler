@@ -30,6 +30,7 @@ return [
         'search_placeholder' => 'Search entities…',
         'create' => 'Create',
         'unlink' => 'Unlink entity',
+        'view' => 'View linked entity',
         'no_results' => 'No matching entities.',
     ],
     'auto' => [

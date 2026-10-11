@@ -301,6 +301,20 @@
     background-color: var(--gray-100, #f3f4f6);
 }
 
+.filament-il-entity-actionable {
+    cursor: pointer;
+}
+
+.filament-il-entity-actionable:hover {
+    border-color: var(--primary-600, oklch(55.5% 0.243 246.722));
+    background-color: var(--gray-100, #f3f4f6);
+}
+
+.filament-il-entity-actionable:focus-visible {
+    outline: 2px solid var(--primary-600, oklch(55.5% 0.243 246.722));
+    outline-offset: 1px;
+}
+
 .filament-il-picker {
     position: relative;
 }
