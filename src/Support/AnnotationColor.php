@@ -17,7 +17,7 @@ class AnnotationColor
         $hash = 0;
         for ($i = 0; $i < strlen($id); $i++) {
             $hash = (($hash << 5) - $hash) + ord($id[$i]);
-            $hash = $hash & 0xFFFFFFFF;
+            $hash &= 0xFFFFFFFF;
             if ($hash >= 0x80000000) {
                 $hash -= 0x100000000;
             }

@@ -25,6 +25,14 @@ return [
         'color' => 'Farbe',
         'hint' => 'Wählen Sie eine Form oder Beschriftung zum Bearbeiten aus.',
     ],
+    'entity' => [
+        'title' => 'Entität',
+        'search_placeholder' => 'Entitäten suchen…',
+        'create' => 'Anlegen',
+        'unlink' => 'Verknüpfung lösen',
+        'view' => 'Verknüpfte Entität ansehen',
+        'no_results' => 'Keine Treffer.',
+    ],
     'auto' => [
         'error' => 'Automatische Beschriftung fehlgeschlagen.',
     ],

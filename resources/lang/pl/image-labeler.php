@@ -25,6 +25,14 @@ return [
         'color' => 'Kolor',
         'hint' => 'Zaznacz kształt lub etykietę, aby je edytować.',
     ],
+    'entity' => [
+        'title' => 'Encja',
+        'search_placeholder' => 'Szukaj encji…',
+        'create' => 'Utwórz',
+        'unlink' => 'Odłącz encję',
+        'view' => 'Pokaż powiązaną encję',
+        'no_results' => 'Brak wyników.',
+    ],
     'auto' => [
         'error' => 'Automatyczne oznaczanie nie powiodło się.',
     ],

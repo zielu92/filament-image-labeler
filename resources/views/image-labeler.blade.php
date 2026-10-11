@@ -33,6 +33,14 @@
             autoError: '',
             _autoRunKey: null,
 
+            entitySection: {{ $field->hasLinkableTypes() ? 'true' : 'false' }},
+            linksEnabled: {{ ($field->hasLinkableTypes() && ! $field->isReadOnly()) ? 'true' : 'false' }},
+            entityCache: {},
+            picker: { open: false, term: '', results: [], busy: false, index: 0 },
+            linkTypes: @js($field->getEntityTypesPayload()),
+            createWord: @js(__('filament-image-labeler::image-labeler.entity.create')),
+            entityAction: @js($field->getEntityActionPayload()),
+
             hashColor(value) {
                 let hash = 0;
                 for (let i = 0; i < value.length; i++) {
@@ -44,6 +52,210 @@
 
             defaultColorFor(label) {
                 return label ? this.hashColor(label) : this.noneColor;
+            },
+
+            callSchema(method, args) {
+                return this.$wire.call('callSchemaComponentMethod', '{{ $field->getKey() }}', method, args);
+            },
+
+            entityKey(ref) {
+                return ref.type + ':' + ref.id;
+            },
+
+            entityFallback(ref) {
+                const parts = String(ref.type || '').split('\\');
+
+                return parts[parts.length - 1] + ' #' + ref.id;
+            },
+
+            entityDisplay(ref) {
+                if (! ref) return '';
+                const cached = this.entityCache[this.entityKey(ref)];
+
+                return (cached && cached.display) || this.entityFallback(ref);
+            },
+
+            entityTypeLabel(ref) {
+                if (! ref) return '';
+                const cached = this.entityCache[this.entityKey(ref)];
+                if (cached && cached.label) return cached.label;
+                const parts = String(ref.type || '').split('\\');
+
+                return parts[parts.length - 1].replace(/([a-z])([A-Z])/g, '$1 $2');
+            },
+
+            get activeShape() {
+                return (this.shapes || []).find(s => this.selIds.includes(s.id)) || null;
+            },
+
+            get activeEntity() {
+                const s = this.activeShape;
+
+                return s && s.entity && s.entity.type ? s.entity : null;
+            },
+
+            get creatableTypes() {
+                return (this.linkTypes || []).filter(t => t.creatable);
+            },
+
+            movePicker(delta) {
+                const n = this.picker.results.length;
+                if (! n) return;
+                this.picker.index = (this.picker.index + delta + n) % n;
+            },
+
+            pickAt(index) {
+                const row = this.picker.results[index];
+                if (row) this.linkEntity(row);
+            },
+
+            async searchLink() {
+                const term = (this.picker.term || '').trim();
+                if (! term) {
+                    this.picker.results = [];
+                    this.picker.open = false;
+
+                    return;
+                }
+                this.picker.busy = true;
+                try {
+                    const raw = (await this.callSchema('searchEntities', { search: term })) || [];
+                    const seen = {};
+                    this.picker.results = raw.filter(r => {
+                        const k = r.type + '|' + r.display;
+                        if (seen[k]) return false;
+                        seen[k] = 1;
+
+                        return true;
+                    });
+                    this.picker.index = 0;
+                    this.picker.open = true;
+                } finally {
+                    this.picker.busy = false;
+                }
+            },
+
+            get pickerGroups() {
+                const out = [];
+                (this.picker.results || []).forEach((row, idx) => {
+                    let g = out.find(x => x.type === row.type);
+                    if (! g) {
+                        g = { type: row.type, label: row.label, rows: [] };
+                        out.push(g);
+                    }
+                    g.rows.push({ row: row, idx: idx });
+                });
+
+                return out;
+            },
+
+            bindEntity(ref, display, typeLabel, actionData = null) {
+                const shape = this.activeShape;
+                if (! shape) return;
+                const key = this.entityKey(ref);
+                this.entityCache = {
+                    ...this.entityCache,
+                    [key]: {
+                        ...(this.entityCache[key] || {}),
+                        display: display,
+                        label: typeLabel,
+                        visible: actionData ? !!actionData.visible : false,
+                        url: actionData ? (actionData.url ?? null) : null,
+                    },
+                };
+                this.state = (this.state || []).map(s => {
+                    if (s.id !== shape.id) return s;
+                    const seeded = (s.label ?? '') === '';
+                    const next = seeded ? display : s.label;
+                    let color = s.color;
+                    if (seeded && next) {
+                        // A seeded label must pick up color exactly like a typed one (commitName).
+                        const existing = this.labelGroups.find(g => g.label === next);
+                        color = existing ? existing.color : this.defaultColorFor(next);
+                    }
+
+                    return { ...s, entity: ref, label: next, color: color };
+                });
+                this.picker = { open: false, term: '', results: [], busy: false, index: 0 };
+            },
+
+            linkEntity(row) {
+                this.bindEntity({ type: row.type, id: row.id }, row.display, row.label, row);
+            },
+
+            async createEntity(t) {
+                if (! this.activeShape) return;
+                this.picker.open = false;
+
+                let result;
+                try {
+                    result = await this.$wire.call('mountAction', t.action, [], { schemaComponent: '{{ $field->getKey() }}' });
+                } catch (e) {
+                    return;
+                }
+
+                if (! result || result.id === null || result.id === undefined) return;
+
+                const ref = { type: t.type, id: result.id };
+                let entry = null;
+                try {
+                    const resolved = await this.callSchema('resolveEntities', { refs: [ref] });
+                    entry = (resolved || {})[this.entityKey(ref)];
+                } catch (e) {}
+                if (entry) {
+                    this.entityCache = { ...this.entityCache, [this.entityKey(ref)]: entry };
+                }
+
+                this.bindEntity(ref, (entry && entry.display) || this.entityFallback(ref), (entry && entry.label) || t.label);
+            },
+
+            unlinkEntity() {
+                const shape = this.activeShape;
+                if (! shape) return;
+                this.state = (this.state || []).map(s => s.id === shape.id ? { ...s, entity: null } : s);
+            },
+
+            entityActionFor(ref) {
+                if (! ref || ! this.entityAction) return null;
+                const c = this.entityCache[this.entityKey(ref)];
+                if (! c || ! c.visible) return null;
+
+                return { url: c.url || null, name: this.entityAction.name, label: this.entityAction.label };
+            },
+
+            shapeEntity(id) {
+                const s = (this.state || []).find(x => x.id === id);
+
+                return s && s.entity && s.entity.type ? s.entity : null;
+            },
+
+            runEntityAction(ref) {
+                const action = this.entityActionFor(ref);
+                if (! action) return;
+                if (action.url) {
+                    window.location.href = action.url;
+
+                    return;
+                }
+                this.$wire.call('mountAction', action.name, { type: ref.type, id: ref.id }, { schemaComponent: '{{ $field->getKey() }}' });
+            },
+
+            async ensureEntities() {
+                if (! this.entitySection) return;
+                const seen = {};
+                const missing = [];
+                (this.state || []).forEach(s => {
+                    if (! s.entity || ! s.entity.type) return;
+                    const k = this.entityKey(s.entity);
+                    if (seen[k]) return;
+                    seen[k] = 1;
+                    if (! (k in this.entityCache)) missing.push(s.entity);
+                });
+                if (! missing.length) return;
+                try {
+                    const resolved = await this.callSchema('resolveEntities', { refs: missing });
+                    this.entityCache = { ...this.entityCache, ...(resolved || {}) };
+                } catch (e) {}
             },
 
             metaFor(id) {
@@ -86,7 +298,7 @@
                 this.anno = window.Annotorious.init({
                     image: this.$refs.imageToLabel,
                     style: this.styleExpr(),
-                    ...(this.readOnly ? { userSelectAction: 'NONE' } : {}),
+                    ...(this.readOnly ? { userSelectAction: (a) => (this.entityAction && this.entityActionFor(this.shapeEntity(a.id)) ? 'SELECT' : 'NONE') } : {}),
                 });
 
                 (this.state || []).forEach(ann => this.anno.addAnnotation(ann));
@@ -104,6 +316,16 @@
 
                     this.anno.on('mouseLeaveAnnotation', () => {
                         this.tooltip.visible = false;
+                    });
+
+                    // Entity link action: userSelectAction SELECTs only actionable
+                    // shapes, so this fires exactly on their click - run it, then
+                    // clear so a re-click on the same shape fires again.
+                    this.anno.on('selectionChanged', (selection) => {
+                        if (! selection || ! selection.length) return;
+                        const ref = this.shapeEntity(selection[0].id);
+                        this.anno.state.selection.clear();
+                        if (ref) this.runEntityAction(ref);
                     });
 
                     return;
@@ -124,6 +346,7 @@
                             target: annotation.target,
                             label: meta.label,
                             color: meta.color,
+                            ...(meta.entity ? { entity: meta.entity } : {}),
                         }];
                     }
                     this.refreshHistory();
@@ -139,7 +362,7 @@
                 this.anno.on('deleteAnnotation', (annotation) => {
                     const shape = (this.state || []).find(s => s.id === annotation.id);
                     if (shape) {
-                        this.metaCache[shape.id] = { label: shape.label, color: shape.color || this.noneColor };
+                        this.metaCache[shape.id] = { label: shape.label, color: shape.color || this.noneColor, entity: shape.entity || null };
                     }
                     this.state = (this.state || []).filter(s => s.id !== annotation.id);
                     this.refreshHistory();
@@ -165,6 +388,7 @@
                     this.initAnnotorious();
                     this.updateScale();
                     this.maybeAutoRun();
+                    this.ensureEntities();
 
                     // External (server-side) state changes: sync geometry into the canvas.
                     this.$watch('state', (newState) => {
@@ -178,6 +402,7 @@
                             if (!current.includes(ann.id)) this.anno.addAnnotation(ann);
                         });
                         this.restyle();
+                        this.ensureEntities();
                     });
 
                     // Details fields follow the active label.
@@ -389,6 +614,14 @@
 
                     if ((this.imageUrl || '').split('?')[0].split('#')[0] !== imageKey) return;
 
+                    const refs = (pending || []).filter(p => p.entity && p.entity.type).map(p => p.entity);
+                    if (refs.length) {
+                        try {
+                            const resolved = await this.callSchema('resolveEntities', { refs });
+                            this.entityCache = { ...this.entityCache, ...(resolved || {}) };
+                        } catch (e) {}
+                    }
+
                     this.applyAutoShapes((pending || []).map(p => this.suggestionShape(p)));
                 } catch (e) {
                     this.autoError = (e && (e.message || e)) || @js(__('filament-image-labeler::image-labeler.auto.error'));
@@ -420,11 +653,15 @@
                     selector = { type: 'POLYGON', geometry: { points: pts, bounds: { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) } } };
                 }
 
+                const entity = (s.entity && s.entity.type) ? s.entity : null;
+                const label = s.label || (entity ? ((this.entityCache[entity.type + ':' + entity.id] || {}).display || '') : '');
+
                 return {
                     id: s.id,
                     target: { selector },
-                    label: s.label || '',
-                    color: this.defaultColorFor(s.label || ''),
+                    label: label,
+                    color: this.defaultColorFor(label),
+                    entity: entity,
                 };
             },
 
@@ -455,6 +692,7 @@
                     target: a.target,
                     label: byId[a.id]?.label ?? '',
                     color: byId[a.id]?.color ?? this.noneColor,
+                    entity: byId[a.id]?.entity ?? this.metaCache[a.id]?.entity ?? null,
                 }));
                 this.restyle();
             },
@@ -746,6 +984,95 @@
                                 </x-filament::input.wrapper>
                             </div>
                         </div>
+
+                        @if ($field->hasLinkableTypes())
+                            <div>
+                                <label class="filament-il-field-label">
+                                    {{ __('filament-image-labeler::image-labeler.entity.title') }}
+                                </label>
+
+                                <div
+                                    x-show="activeEntity"
+                                    class="filament-il-entity"
+                                    :class="entityActionFor(activeEntity) ? 'filament-il-entity-actionable' : ''"
+                                    :role="entityActionFor(activeEntity) ? 'button' : null"
+                                    :tabindex="entityActionFor(activeEntity) ? 0 : null"
+                                    :aria-label="entityActionFor(activeEntity) ? entityActionFor(activeEntity).label : null"
+                                    x-on:click="runEntityAction(activeEntity)"
+                                    x-on:keydown.enter.prevent="runEntityAction(activeEntity)"
+                                    x-on:keydown.space.prevent="runEntityAction(activeEntity)"
+                                    x-cloak
+                                >
+                                    <span class="filament-il-entity-type" x-text="entityTypeLabel(activeEntity)"></span>
+                                    <span class="filament-il-entity-display" x-text="entityDisplay(activeEntity)"></span>
+                                    <button
+                                        type="button"
+                                        x-show="linksEnabled"
+                                        x-on:click.stop="unlinkEntity()"
+                                        x-on:keydown.stop
+                                        class="filament-il-entity-unlink"
+                                        title="{{ __('filament-image-labeler::image-labeler.entity.unlink') }}"
+                                        aria-label="{{ __('filament-image-labeler::image-labeler.entity.unlink') }}"
+                                    >&times;</button>
+                                </div>
+
+                                <div x-show="!activeEntity && linksEnabled" class="filament-il-picker" @click.outside="picker.open = false">
+                                    <x-filament::input.wrapper>
+                                        <x-filament::input
+                                            type="text"
+                                            x-ref="linkInput"
+                                            x-model="picker.term"
+                                            x-on:input.debounce.300ms="searchLink()"
+                                            x-on:focus="picker.open = true"
+                                            x-on:keydown.arrow-down.prevent="movePicker(1)"
+                                            x-on:keydown.arrow-up.prevent="movePicker(-1)"
+                                            x-on:keydown.enter.prevent="pickAt(picker.index)"
+                                            x-on:keydown.escape.prevent="picker.open = false"
+                                            x-bind:disabled="!activeShape"
+                                            role="combobox"
+                                            aria-autocomplete="list"
+                                            placeholder="{{ __('filament-image-labeler::image-labeler.entity.search_placeholder') }}"
+                                        />
+                                    </x-filament::input.wrapper>
+
+                                    <ul x-show="picker.open && picker.results.length" class="filament-il-results" role="listbox" x-cloak>
+                                        <template x-for="g in pickerGroups" :key="g.type">
+                                            <li role="presentation">
+                                                <span class="filament-il-result-group" x-text="g.label"></span>
+                                                <template x-for="item in g.rows" :key="item.row.type + ':' + item.row.id">
+                                                    <div
+                                                        role="option"
+                                                        class="filament-il-result"
+                                                        :class="item.idx === picker.index ? 'filament-il-result-active' : ''"
+                                                        :aria-selected="item.idx === picker.index"
+                                                        x-on:click="linkEntity(item.row)"
+                                                        x-on:mouseenter="picker.index = item.idx"
+                                                    >
+                                                        <span x-text="item.row.display"></span>
+                                                    </div>
+                                                </template>
+                                            </li>
+                                        </template>
+                                    </ul>
+
+                                    <ul x-show="picker.open && creatableTypes.length" class="filament-il-results" x-cloak>
+                                        <template x-for="t in creatableTypes" :key="'create:' + t.type">
+                                            <li
+                                                class="filament-il-result"
+                                                x-on:click="createEntity(t)"
+                                            >
+                                                <span class="filament-il-result-type">{{ __('filament-image-labeler::image-labeler.entity.create') }}</span>
+                                                <span x-text="t.label"></span>
+                                            </li>
+                                        </template>
+                                    </ul>
+
+                                    <p x-show="picker.open && !picker.results.length && !creatableTypes.length && (picker.term || '').trim()" class="filament-il-empty" x-cloak>
+                                        {{ __('filament-image-labeler::image-labeler.entity.no_results') }}
+                                    </p>
+                                </div>
+                            </div>
+                        @endif
                     </div>
 
                     <p x-show="!detailsVisible" class="filament-il-empty">

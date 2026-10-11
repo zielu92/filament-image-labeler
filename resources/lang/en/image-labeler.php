@@ -25,6 +25,14 @@ return [
         'color' => 'Color',
         'hint' => 'Select a shape or a label to edit it.',
     ],
+    'entity' => [
+        'title' => 'Entity',
+        'search_placeholder' => 'Search entities…',
+        'create' => 'Create',
+        'unlink' => 'Unlink entity',
+        'view' => 'View linked entity',
+        'no_results' => 'No matching entities.',
+    ],
     'auto' => [
         'error' => 'Automatic annotation failed.',
     ],
