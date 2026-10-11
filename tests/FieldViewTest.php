@@ -25,7 +25,6 @@ class FieldViewTest extends TestCase
         $this->assertStringContainsString('activeEntity', $compiled);
         $this->assertStringContainsString('runEntityAction', $compiled);
         $this->assertStringContainsString('entityAction', $compiled);
-        // undo/redo must rebuild state with the entity link preserved.
         $this->assertStringContainsString('byId[a.id]?.entity ?? this.metaCache[a.id]?.entity', $compiled);
     }
 

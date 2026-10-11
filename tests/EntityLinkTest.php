@@ -289,7 +289,6 @@ class EntityLinkTest extends TestCase
             'display'
         );
 
-        // % and _ are literal, not wildcards; '!' is the escape char, matched literally.
         $this->assertSame(['50% off'], $search('50%'));
         $this->assertSame(['a_b'], $search('a_b'));
         $this->assertSame(['go!'], $search('!'));
@@ -502,7 +501,6 @@ class EntityLinkTest extends TestCase
 
         $rows = $field->searchEntities('Jan');
 
-        // Row still returned (the shape/record renders) but with no affordance.
         $this->assertCount(1, $rows);
         $this->assertFalse($rows[0]['visible']);
         $this->assertNull($rows[0]['url']);
@@ -528,7 +526,6 @@ class EntityLinkTest extends TestCase
     {
         $person = EntityPerson::create(['first_name' => 'Jan', 'last_name' => 'Kowalski']);
 
-        // No url() at all: the entity link action opens a modal, visible must survive.
         $field = $this->actionField()->entityAction(
             FilamentActionsAction::make('viewThing')
         );
@@ -643,7 +640,6 @@ class EntityLinkTest extends TestCase
 
     public function test_entity_link_migration_down_drops_columns_and_keeps_table(): void
     {
-        // Rebuild the pre-migration shape of annotations (no entity columns).
         Schema::drop('annotations');
         Schema::create('annotations', function (Blueprint $table) {
             $table->id();
@@ -666,7 +662,6 @@ class EntityLinkTest extends TestCase
         $this->assertTrue(Schema::hasColumn('annotations', 'entity_type'));
         $this->assertTrue(Schema::hasColumn('annotations', 'entity_id'));
 
-        // Persist one linked annotation so we can prove rollback keeps the row.
         $owner = EntityOwner::create([]);
         $owner->syncAnnotations([[
             'annotation_id' => 'a1',
@@ -680,7 +675,6 @@ class EntityLinkTest extends TestCase
         $this->assertFalse(Schema::hasColumn('annotations', 'entity_type'));
         $this->assertFalse(Schema::hasColumn('annotations', 'entity_id'));
 
-        // The table and its core data survive the rollback.
         $this->assertTrue(Schema::hasColumn('annotations', 'annotation_id'));
         $this->assertSame('a1', $owner->annotations()->first()->annotation_id);
     }

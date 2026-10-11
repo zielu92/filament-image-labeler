@@ -26,11 +26,6 @@ final class LinkableType
     /** @var array<class-string, array{name: bool, title: bool}> */
     private static array $columnCache = [];
 
-    /**
-     * LIKE escape char. '!' needs no string-literal doubling on any driver
-     * (unlike '\', which MySQL eats), so `escape '!'` is portable across
-     * MySQL, MariaDB, Postgres, SQLite and SQL Server.
-     */
     private const LIKE_ESCAPE = '!';
 
     /**
@@ -154,8 +149,7 @@ final class LinkableType
     /**
      * Search records for one term: every whitespace-separated word must
      * match at least one searchable column (OR across columns, AND across
-     * words), mirroring Filament's own picker baseline. `%` and `_` are
-     * escaped as literals; the escape char `!` itself is doubled.
+     * words), mirroring Filament's own picker baseline.
      *
      * @param  (callable(Model): array{0: bool, 1: string|null})|null  $affordance
      * @return list<array{type: string, id: int|string, display: string, label: string, visible?: bool, url?: string|null}>

@@ -72,8 +72,7 @@ final readonly class LinkableTypes
     /**
      * Fan a term out over every type (AND across words, OR across
      * searchable columns); matches carry the entity link action affordance
-     * when one is configured. A match whose affordance url is not a safe
-     * link (EntityUrlGuard) loses its affordance: visible false, url null.
+     * when one is configured.
      *
      * @param  (callable(Model): array{0: bool, 1: string|null})|null  $affordance
      * @return list<array{type: string, id: int|string, display: string, label: string, visible?: bool, url?: string|null}>
@@ -106,8 +105,7 @@ final readonly class LinkableTypes
      * refs outside the allow-list get a basename fallback without touching
      * the DB (stale links still render). The $affordance callback, when
      * given, decides visible/url per allowed ref (record is null for a
-     * dead one). An unsafe affordance url (EntityUrlGuard) drops the
-     * affordance: visible false, url null, so the shape still renders.
+     * dead one).
      *
      * @param  list<array<array-key, mixed>>  $refs
      * @param  (callable(Model|null): array{0: bool, 1: string|null})|null  $affordance
