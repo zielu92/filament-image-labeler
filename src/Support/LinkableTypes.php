@@ -72,7 +72,8 @@ final readonly class LinkableTypes
     /**
      * Fan a term out over every type (AND across words, OR across
      * searchable columns); matches carry the entity link action affordance
-     * when one is configured.
+     * when one is configured. A match whose affordance url is not a safe
+     * link (EntityUrlGuard) loses its affordance: visible false, url null.
      *
      * @param  (callable(Model): array{0: bool, 1: string|null})|null  $affordance
      * @return list<array{type: string, id: int|string, display: string, label: string, visible?: bool, url?: string|null}>
@@ -89,6 +90,14 @@ final readonly class LinkableTypes
             }
         }
 
+        foreach ($results as &$row) {
+            if (($row['visible'] ?? false) && ($row['url'] ?? null) !== null && ! EntityUrlGuard::isSafe($row['url'])) {
+                $row['visible'] = false;
+                $row['url'] = null;
+            }
+        }
+        unset($row);
+
         return array_slice($results, 0, $cap);
     }
 
@@ -97,7 +106,8 @@ final readonly class LinkableTypes
      * refs outside the allow-list get a basename fallback without touching
      * the DB (stale links still render). The $affordance callback, when
      * given, decides visible/url per allowed ref (record is null for a
-     * dead one).
+     * dead one). An unsafe affordance url (EntityUrlGuard) drops the
+     * affordance: visible false, url null, so the shape still renders.
      *
      * @param  list<array<array-key, mixed>>  $refs
      * @param  (callable(Model|null): array{0: bool, 1: string|null})|null  $affordance
@@ -132,7 +142,15 @@ final readonly class LinkableTypes
                 ];
 
                 if ($affordance !== null) {
-                    [$entry['visible'], $entry['url']] = $affordance($record);
+                    [$visible, $url] = $affordance($record);
+
+                    if ($visible && $url !== null && ! EntityUrlGuard::isSafe($url)) {
+                        $visible = false;
+                        $url = null;
+                    }
+
+                    $entry['visible'] = $visible;
+                    $entry['url'] = $url;
                 }
 
                 $resolved[$type . ':' . $id] = $entry;

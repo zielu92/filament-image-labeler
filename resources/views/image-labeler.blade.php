@@ -692,6 +692,8 @@
                     target: a.target,
                     label: byId[a.id]?.label ?? '',
                     color: byId[a.id]?.color ?? this.noneColor,
+                    // undo/redo carry geometry only - keep the link (state, else metaCache for restored deletions).
+                    entity: byId[a.id]?.entity ?? this.metaCache[a.id]?.entity ?? null,
                 }));
                 this.restyle();
             },

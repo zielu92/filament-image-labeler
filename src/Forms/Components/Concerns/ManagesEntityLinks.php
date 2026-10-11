@@ -36,6 +36,9 @@ trait ManagesEntityLinks
 
     protected ?LinkedEntityAction $linkedEntityAction = null;
 
+    /** Upper bound on refs one resolveEntities RPC may resolve, mirroring the searchEntities cap. */
+    private const MAX_ENTITY_REFS = 50;
+
     /**
      * Enable entity links: shapes on this field may be linked to records of
      * the given types. Each entry is a configured LinkableType.
@@ -92,7 +95,8 @@ trait ManagesEntityLinks
 
     /**
      * Resolve display strings (plus per-ref affordance when an entityAction
-     * is configured) for the refs the current shapes point at.
+     * is configured) for the refs the current shapes point at. Oversized
+     * batches (a persisted-state flood) are refused: returns [] over the cap.
      *
      * @param  list<array<array-key, mixed>>  $refs
      * @return array<string, array{display: string, label: string, visible?: bool, url?: string|null}>
@@ -101,7 +105,7 @@ trait ManagesEntityLinks
     #[Renderless]
     public function resolveEntities(array $refs): array
     {
-        if (! $this->hasLinkableTypes()) {
+        if (! $this->hasLinkableTypes() || count($refs) > self::MAX_ENTITY_REFS) {
             return [];
         }
 

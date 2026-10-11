@@ -27,6 +27,13 @@ final class LinkableType
     private static array $columnCache = [];
 
     /**
+     * LIKE escape char. '!' needs no string-literal doubling on any driver
+     * (unlike '\', which MySQL eats), so `escape '!'` is portable across
+     * MySQL, MariaDB, Postgres, SQLite and SQL Server.
+     */
+    private const LIKE_ESCAPE = '!';
+
+    /**
      * @param  class-string<Model>  $model
      */
     public function __construct(public readonly string $model) {}
@@ -147,7 +154,8 @@ final class LinkableType
     /**
      * Search records for one term: every whitespace-separated word must
      * match at least one searchable column (OR across columns, AND across
-     * words), mirroring Filament's own picker baseline.
+     * words), mirroring Filament's own picker baseline. `%` and `_` are
+     * escaped as literals; the escape char `!` itself is doubled.
      *
      * @param  (callable(Model): array{0: bool, 1: string|null})|null  $affordance
      * @return list<array{type: string, id: int|string, display: string, label: string, visible?: bool, url?: string|null}>
@@ -171,12 +179,18 @@ final class LinkableType
 
         $query = $model::query();
 
-        foreach ($words as $word) {
-            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $word) . '%';
+        $escape = self::LIKE_ESCAPE;
 
-            $query->where(function ($q) use ($columns, $like): void {
+        foreach ($words as $word) {
+            $like = '%' . str_replace(
+                [$escape, '%', '_'],
+                [$escape . $escape, $escape . '%', $escape . '_'],
+                $word,
+            ) . '%';
+
+            $query->where(function ($q) use ($columns, $like, $escape): void {
                 foreach ($columns as $column) {
-                    $q->orWhereRaw("{$column} like ? escape '\\'", [$like]);
+                    $q->orWhereRaw("{$column} like ? escape '{$escape}'", [$like]);
                 }
             });
         }

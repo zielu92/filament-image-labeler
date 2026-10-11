@@ -13,6 +13,11 @@ return new class extends Migration
     {
         Schema::table('annotations', function (Blueprint $table) {
             $table->string('entity_type')->nullable()->after('annotation_id');
+
+            // ponytail: entity_id mirrors a numeric primary key. Linked models
+            // keyed by UUID/ULID/string need this widened to a string column
+            // (or nullableUuidMorphs); linkedAnnotations() morphMany binds the
+            // key type back here, so the two must stay in step.
             $table->unsignedBigInteger('entity_id')->nullable()->after('entity_type');
 
             $table->index(['entity_type', 'entity_id']);

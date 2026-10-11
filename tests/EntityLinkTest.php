@@ -4,6 +4,7 @@ namespace Zielu92\FilamentImageLabeler\Tests;
 
 use Filament\Actions\Action as FilamentActionsAction;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Zielu92\FilamentImageLabeler\Concerns\HasAnnotations;
@@ -275,6 +276,25 @@ class EntityLinkTest extends TestCase
         $this->assertSame('Tower 50%', $results[0]['display']);
     }
 
+    public function test_search_escapes_like_metacharacters(): void
+    {
+        EntityBuilding::create(['name' => '50% off']);
+        EntityBuilding::create(['name' => '50m off']);
+        EntityBuilding::create(['name' => 'a_b']);
+        EntityBuilding::create(['name' => 'axb']);
+        EntityBuilding::create(['name' => 'go!']);
+
+        $search = fn (string $term): array => array_column(
+            LinkableType::make(EntityBuilding::class)->search($term),
+            'display'
+        );
+
+        // % and _ are literal, not wildcards; '!' is the escape char, matched literally.
+        $this->assertSame(['50% off'], $search('50%'));
+        $this->assertSame(['a_b'], $search('a_b'));
+        $this->assertSame(['go!'], $search('!'));
+    }
+
     // --- Field API (wf-003) ---
 
     public function test_linkable_to_rejects_custom_display_without_search_by(): void
@@ -472,6 +492,71 @@ class EntityLinkTest extends TestCase
         $this->assertSame('/people', $rows[0]['url']);
     }
 
+    public function test_search_entities_drops_affordance_for_unsafe_url(): void
+    {
+        EntityPerson::create(['first_name' => 'Jan', 'last_name' => 'Kowalski']);
+
+        $field = $this->actionField()->entityAction(
+            FilamentActionsAction::make('viewThing')->url('javascript:alert(1)')
+        );
+
+        $rows = $field->searchEntities('Jan');
+
+        // Row still returned (the shape/record renders) but with no affordance.
+        $this->assertCount(1, $rows);
+        $this->assertFalse($rows[0]['visible']);
+        $this->assertNull($rows[0]['url']);
+    }
+
+    public function test_resolve_entities_drops_affordance_for_unsafe_url(): void
+    {
+        $person = EntityPerson::create(['first_name' => 'Jan', 'last_name' => 'Kowalski']);
+
+        $field = $this->actionField()->entityAction(
+            FilamentActionsAction::make('viewThing')->url('data:text/html,<script>alert(1)</script>')
+        );
+
+        $resolved = $field->resolveEntities([
+            ['type' => EntityPerson::class, 'id' => $person->id],
+        ]);
+
+        $this->assertFalse($resolved[EntityPerson::class . ':' . $person->id]['visible']);
+        $this->assertNull($resolved[EntityPerson::class . ':' . $person->id]['url']);
+    }
+
+    public function test_resolve_entities_keeps_modal_affordance_when_url_is_null(): void
+    {
+        $person = EntityPerson::create(['first_name' => 'Jan', 'last_name' => 'Kowalski']);
+
+        // No url() at all: the entity link action opens a modal, visible must survive.
+        $field = $this->actionField()->entityAction(
+            FilamentActionsAction::make('viewThing')
+        );
+
+        $resolved = $field->resolveEntities([
+            ['type' => EntityPerson::class, 'id' => $person->id],
+        ]);
+
+        $this->assertTrue($resolved[EntityPerson::class . ':' . $person->id]['visible']);
+        $this->assertNull($resolved[EntityPerson::class . ':' . $person->id]['url']);
+    }
+
+    public function test_resolve_entities_caps_oversized_input(): void
+    {
+        $field = $this->actionField();
+
+        $refs = array_map(
+            fn (int $i): array => ['type' => EntityPerson::class, 'id' => $i],
+            range(1, 51)
+        );
+
+        $this->assertSame([], $field->resolveEntities($refs));
+
+        $this->assertNotSame([], $field->resolveEntities([
+            ['type' => EntityPerson::class, 'id' => 1],
+        ]));
+    }
+
     public function test_mount_guard_rejects_foreign_type_and_missing_record(): void
     {
         $person = EntityPerson::create(['first_name' => 'Jan', 'last_name' => 'Kowalski']);
@@ -554,5 +639,49 @@ class EntityLinkTest extends TestCase
 
         $this->assertTrue(Schema::hasColumn('annotations', 'entity_type'));
         $this->assertTrue(Schema::hasColumn('annotations', 'entity_id'));
+    }
+
+    public function test_entity_link_migration_down_drops_columns_and_keeps_table(): void
+    {
+        // Rebuild the pre-migration shape of annotations (no entity columns).
+        Schema::drop('annotations');
+        Schema::create('annotations', function (Blueprint $table) {
+            $table->id();
+            $table->string('annotatable_type');
+            $table->unsignedBigInteger('annotatable_id');
+            $table->string('annotation_id');
+            $table->json('geometry');
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+            $table->index(['annotatable_type', 'annotatable_id']);
+        });
+
+        /** @var Migration $migration */
+        $migration = require __DIR__ . '/../database/migrations/update_annotations_add_entity_links.php';
+
+        $this->assertFalse(Schema::hasColumn('annotations', 'entity_type'));
+
+        $migration->up();
+
+        $this->assertTrue(Schema::hasColumn('annotations', 'entity_type'));
+        $this->assertTrue(Schema::hasColumn('annotations', 'entity_id'));
+
+        // Persist one linked annotation so we can prove rollback keeps the row.
+        $owner = EntityOwner::create([]);
+        $owner->syncAnnotations([[
+            'annotation_id' => 'a1',
+            'geometry' => [0, 0, 1, 1],
+            'entity_type' => EntityPerson::class,
+            'entity_id' => EntityPerson::create(['first_name' => 'Jan'])->id,
+        ]]);
+
+        $migration->down();
+
+        $this->assertFalse(Schema::hasColumn('annotations', 'entity_type'));
+        $this->assertFalse(Schema::hasColumn('annotations', 'entity_id'));
+
+        // The table and its core data survive the rollback.
+        $this->assertTrue(Schema::hasColumn('annotations', 'annotation_id'));
+        $this->assertSame('a1', $owner->annotations()->first()->annotation_id);
     }
 }
