@@ -91,7 +91,7 @@ final class LinkableType
 
     public function hasCustomDisplay(): bool
     {
-        return $this->display !== null;
+        return $this->display instanceof Closure;
     }
 
     public function hasSearchBy(): bool
@@ -110,7 +110,7 @@ final class LinkableType
      */
     public function displayFor(Model $record): string
     {
-        if ($this->display !== null) {
+        if ($this->display instanceof Closure) {
             return (string) ($this->display)($record);
         }
 

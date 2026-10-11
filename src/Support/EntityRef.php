@@ -9,11 +9,11 @@ use Illuminate\Database\Eloquent\Model;
  * Type is the model class, id its key - resolved for display only by
  * convention, never by a live model instance.
  */
-final class EntityRef
+final readonly class EntityRef
 {
     public function __construct(
-        public readonly string $type,
-        public readonly int | string $id,
+        public string $type,
+        public int | string $id,
     ) {}
 
     public static function fromModel(Model $model): self

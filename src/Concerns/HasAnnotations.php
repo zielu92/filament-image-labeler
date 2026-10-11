@@ -12,7 +12,7 @@ trait HasAnnotations
 {
     public static function bootHasAnnotations(): void
     {
-        static::deleting(function ($model) {
+        static::deleting(function ($model): void {
             $model->annotations()->delete();
         });
     }

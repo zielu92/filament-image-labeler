@@ -421,7 +421,7 @@ class EntityLinkTest extends TestCase
 
         $field->entityAction(FilamentActionsAction::make('viewThing')->url(fn (Model $r) => '/people/' . $r->getKey()));
 
-        $this->assertSame('openLinkedEntity', $field->linkedEntityAction()->getName());
+        $this->assertSame('openLinkedEntity', $field->linkedEntityAction()->action()->getName());
         $this->assertSame('openLinkedEntity', $field->getAction('openLinkedEntity')->getName());
         $this->assertSame([
             'name' => 'openLinkedEntity',
@@ -476,7 +476,7 @@ class EntityLinkTest extends TestCase
     {
         $person = EntityPerson::create(['first_name' => 'Jan', 'last_name' => 'Kowalski']);
         $field = $this->actionField()->entityAction(FilamentActionsAction::make('viewThing'));
-        $action = $field->linkedEntityAction();
+        $action = $field->linkedEntityAction()->action();
 
         try {
             $this->mountWith($action, ['type' => EntityBuilding::class, 'id' => 1]);

@@ -10,15 +10,15 @@ use InvalidArgumentException;
  * (0..1) geometry - a box [x, y, w, h] or a polygon of points (polygon wins
  * when both are given), stored as closed `points`.
  */
-final class AnnotationSuggestion
+final readonly class AnnotationSuggestion
 {
     /** @var list<array{0: float, 1: float}> */
-    public readonly array $points;
+    public array $points;
 
     /** @var array{0: float, 1: float, 2: float, 3: float}|null */
-    public readonly ?array $box;
+    public ?array $box;
 
-    public readonly ?EntityRef $entity;
+    public ?EntityRef $entity;
 
     /**
      * @param  array<array-key, mixed>|null  $box  [x, y, w, h], normalized
@@ -26,7 +26,7 @@ final class AnnotationSuggestion
      * @param  EntityRef|array<array-key, mixed>|null  $entity  linked entity this finding corresponds to
      */
     public function __construct(
-        public readonly string $label,
+        public string $label,
         ?array $box = null,
         ?array $polygon = null,
         EntityRef | array | null $entity = null,
@@ -40,9 +40,9 @@ final class AnnotationSuggestion
         $normBox = null;
 
         if ($polygon !== null) {
-            $points = self::polygonPoints($polygon);
+            $points = $this->polygonPoints($polygon);
         } elseif ($box !== null) {
-            $normBox = self::numericBox($box);
+            $normBox = $this->numericBox($box);
             [$x, $y, $w, $h] = $normBox;
             $points = [[$x, $y], [$x + $w, $y], [$x + $w, $y + $h], [$x, $y + $h]];
         } else {
@@ -112,7 +112,7 @@ final class AnnotationSuggestion
      * @param  array<array-key, mixed>  $box
      * @return array{0: float, 1: float, 2: float, 3: float}
      */
-    protected static function numericBox(array $box): array
+    private function numericBox(array $box): array
     {
         if (count($box) !== 4) {
             throw new InvalidArgumentException('A suggestion box must be [x, y, w, h] with numeric, normalized values.');
@@ -135,7 +135,7 @@ final class AnnotationSuggestion
      * @param  array<array-key, mixed>  $polygon
      * @return list<array{0: float, 1: float}>
      */
-    protected static function polygonPoints(array $polygon): array
+    private function polygonPoints(array $polygon): array
     {
         if (count($polygon) < 3) {
             throw new InvalidArgumentException('A suggestion polygon needs at least 3 points.');

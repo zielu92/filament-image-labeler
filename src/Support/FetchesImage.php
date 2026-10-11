@@ -93,7 +93,7 @@ class FetchesImage
             return null;
         }
 
-        app()->terminating(fn () => @unlink($temp));
+        app()->terminating(fn (): bool => @unlink($temp));
 
         return $temp;
     }
@@ -116,12 +116,7 @@ class FetchesImage
         if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
             return filter_var($host, FILTER_VALIDATE_IP, $publicFlags) !== false;
         }
-
-        $ips = [];
-
-        foreach (gethostbynamel($host) ?: [] as $ip) {
-            $ips[] = $ip;
-        }
+        $ips = gethostbynamel($host) ?: [];
 
         foreach (dns_get_record($host, DNS_AAAA) ?: [] as $record) {
             if (! empty($record['ipv6'])) {
@@ -153,7 +148,7 @@ class FetchesImage
         $hosts = array_filter([
             parse_url((string) config('app.url'), PHP_URL_HOST),
             request()->getHost(),
-        ], 'is_string');
+        ], is_string(...));
 
         foreach ($hosts as $expected) {
             if (strcasecmp($host, $expected) === 0) {

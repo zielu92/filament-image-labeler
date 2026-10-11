@@ -13,7 +13,7 @@ trait LinkableEntity
 {
     public static function bootLinkableEntity(): void
     {
-        static::deleted(function ($model) {
+        static::deleted(function ($model): void {
             Annotation::query()
                 ->where('entity_type', $model::class)
                 ->where('entity_id', $model->getKey())
