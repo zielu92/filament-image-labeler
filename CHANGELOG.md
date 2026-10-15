@@ -6,6 +6,7 @@ All notable changes to `filament-image-labeler` will be documented in this file.
 
 ### Added
 
+- **Laravel Boost support** — the package now ships `resources/boost/` guidelines and an agent skill. Apps using [Laravel Boost](https://laravel.com/docs/boost) can opt `zielu92/filament-image-labeler` in during `php artisan boost:install` (or `boost:update --discover`), after which coding agents receive a concise always-on guideline and an on-demand `filament-image-labeler-development` skill covering the field API, the `syncAnnotations()` persistence contract, entity links and automatic annotation. Pickup verified against Laravel 13 / Boost 2.10. The skill requires Boost 2.x.
 - **Entity link actions** — `ImageLabel::entityAction()` takes one template Filament `Action` whose closures receive the linked record. When the action is visible for a record, the entity chip becomes clickable (mouse + keyboard) and, on a read-only field, clicking the shape runs it: a non-null `url()` navigates in the same tab, otherwise the Action's modal opens in the editor. Per-record `visible()` hides the affordance. Mount re-validates the type against `linkableTo()` and record existence; stale links render as plain chips.
 
 ## v0.3.2 - 2026-10-01
