@@ -10,7 +10,7 @@ A Filament v5 form field (`ImageLabel`) for annotating images with rectangles an
 use Zielu92\FilamentImageLabeler\Forms\Components\ImageLabel;
 
 ImageLabel::make('annotations')
-    ->image(fn ($get, $record) => $record?->getFirstMedia()?->getUrl())
+    ->image(fn ($record) => $record?->image_url)
     ->live()
     ->columnSpanFull();
 </code-snippet>

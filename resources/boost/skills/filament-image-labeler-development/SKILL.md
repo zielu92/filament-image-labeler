@@ -47,15 +47,19 @@ Provides `annotations()` (MorphMany to `Annotation`, morph name `annotatable`), 
 `->image(string|Closure $url)` is required (the editor collapses while no image is set). The closure re-evaluates each render, so make the source image field `->live()` and resolve the URL from state — this also covers a freshly uploaded, not-yet-saved file:
 
 ```php
+use Illuminate\Support\Facades\Storage;
+
 ImageLabel::make('annotations')
     ->image(fn ($get, $record) => $record?->exists
-        ? $record->getFirstMedia()?->getTemporaryUrl(now()->addHour())
-        : ($get('photo') instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile
-            ? $get('photo')->temporaryUrl()
+        ? Storage::url($record->image_path)        // persisted record: disk path on the default disk
+        : ($get('image') instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile
+            ? $get('image')->temporaryUrl()        // freshly uploaded, not-yet-saved file
             : null))
     ->live()
     ->columnSpanFull();
 ```
+
+Substitute whatever the app actually uses for the saved case (direct URL column, `Storage::temporaryUrl()`, a media library, …) — the only requirement is a full URL the browser can load.
 
 Config methods (all accept `bool|Closure` where a toggle):
 
@@ -134,23 +138,29 @@ $data['annotations'] = $this->record->annotations()->orderBy('id')->get()
 A shape can link to one app record, beside its label. No `->linkableTo()` = no picker/chip/links. Minimal wiring = (a) `LinkableEntity` on each linkable model, (b) `->linkableTo([...])` on the field, (c) map the `entity` key yourself (already shown in §3).
 
 ```php
+use Illuminate\Database\Eloquent\Model;
 use Zielu92\FilamentImageLabeler\Support\LinkableType;
 
 ImageLabel::make('annotations')
     ->image(/* ... */)
     ->linkableTo([
-        LinkableType::make(Building::class),                       // display: name, else title, else "#<id>"
-        LinkableType::make(Person::class)
-            ->display(fn (Person $p): string => "{$p->first_name} {$p->last_name}")
-            ->searchBy(['first_name', 'last_name']),               // REQUIRED whenever ->display() is set
-        LinkableType::make(Vendor::class)
-            ->typeLabel('Supplier')
+        LinkableType::make(Product::class),                        // display: name, else title, else "#<id>"
+        LinkableType::make(Category::class)
+            ->display(fn (Category $c): string => "{$c->name} ({$c->slug})")
+            ->searchBy(['name', 'slug']),                          // REQUIRED whenever ->display() is set
+        LinkableType::make(Supplier::class)
+            ->typeLabel('Vendor')
             ->creatable(fn () => [TextInput::make('name')->required()]),
     ])
     ->allowEntityCreation(true)          // true=all creatable(), false=none, array=exactly those model classes
     ->entityAction(
-        \Filament\Actions\Action::make('viewPlace')
-            ->url(fn (Place $record): ?string => route('places.show', $record))
+        // ONE template Action for every linked type — branch on the record.
+        \Filament\Actions\Action::make('viewLinked')
+            ->url(fn (Model $record): ?string => match (true) {
+                $record instanceof Product => route('products.show', $record),
+                $record instanceof Category => route('categories.show', $record),
+                default => null,         // no url -> the Action's modal config opens, if visible() allows
+            })
     );
 ```
 
@@ -163,7 +173,7 @@ Add the trait so deleting a record nulls its inbound links (shape + label surviv
 ```php
 use Zielu92\FilamentImageLabeler\Concerns\LinkableEntity;
 
-class Person extends Model { use LinkableEntity; }
+class Product extends Model { use LinkableEntity; }
 ```
 
 ## 5. Automatic annotation (opt-in; the model's own code does the thinking)
