@@ -22,6 +22,7 @@ A Filament plugin for labeling images — draw rectangles and polygons, name the
 - **Optional entity links** — link a shape to a record in your own app (a `Person`, a `Building`, anything): an inline entity picker in the Label Details panel searches across the types you configure, the linked entity shows as a chip (optionally clickable — a template Action opens its URL or modal), and the first link seeds an empty label with the record's display string
 - **Optional automatic annotation** — a model overrides `autoAnnotate()` to turn an image into suggestions (any backend you like: local model, detection API, LLM); the editor gets an **Annotate** button, optionally auto-running when the image loads
 - Works with private/public file storage, Filament v5 compatible, translations (en/de/pl)
+- [Laravel Boost](https://laravel.com/docs/boost) aware — ships an AI guideline + agent skill so coding agents write correct `ImageLabel` usage (see [AI coding agents](#ai-coding-agents-laravel-boost))
 
 ## Installation
 
@@ -29,6 +30,15 @@ A Filament plugin for labeling images — draw rectangles and polygons, name the
 composer require zielu92/filament-image-labeler
 php artisan migrate
 ```
+
+## AI coding agents (Laravel Boost)
+
+This package ships first-class [Laravel Boost](https://laravel.com/docs/boost) resources so AI coding agents (Claude Code, Cursor, etc.) generate correct code for it out of the box:
+
+- `resources/boost/guidelines/core.blade.php` — a short always-on guideline (what the package is, install, and a pointer to the skill).
+- `resources/boost/skills/filament-image-labeler-development/` — an on-demand skill with the full field API, the persistence mapping, entity links and automatic annotation.
+
+Boost discovers these automatically. To load them into your app's agent files, run `php artisan boost:install` and tick **zielu92/filament-image-labeler** in the third-party packages prompt (the choice is remembered in `boost.json`; use `php artisan boost:update --discover` on an existing Boost install). Nothing is injected without that opt-in. The skill requires **Laravel Boost 2.x**; the guideline also works on 1.x.
 
 ## How It Works
 
